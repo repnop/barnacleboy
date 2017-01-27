@@ -1,0 +1,6 @@
+// Place your settings in this file to overwrite default and user settings.
+{
+    "rust.racerPath": "C:\\Users\\shell\\Documents\\Rust Dev\\dev_deps",
+    "rust.rustfmtPath": "C:\\Users\\shell\\.cargo\\bin\\",
+    "rust.rustLangSrcPath": "C:\\Users\\shell\\Documents\\Rust Dev\\dev_deps\\src"
+}
