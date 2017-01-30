@@ -1,21 +1,32 @@
 use cpu::instruction;
+use super::super::interconnect::interconnect::Interconnect;
 
 const FLAGS_ZERO_INDEX: u8 = 7;
 const FLAGS_SUB_INDEX: u8 = 6;
 const FLAGS_CARRY_BORROW_3: u8 = 5;
 const FLAGS_CARRY_BORROW_7: u8 = 4;
 
-#[derive(Default)]
-pub struct Cpu {
+pub struct Cpu<'a> {
     registers: [u8; 7],
     flags: u8,
     stack_pointer: u16,
-    program_counter: u16
+    program_counter: u16,
+    interconnect: &'a Interconnect
 }
 
-impl Cpu {
-    pub fn new() -> Cpu {
-        Cpu::default()
+impl<'a> Cpu<'a> {
+    pub fn new(interconnect: &Interconnect) -> Cpu {
+        Cpu {
+            registers: [0u8; 7],
+            flags: 0u8,
+            stack_pointer: 0u16,
+            program_counter: 0u16,
+            interconnect: interconnect
+        }
+    }
+
+    pub fn execute_instruction(&mut self) {
+
     }
 
     #[inline]
