@@ -1,4 +1,4 @@
-use super::super::mmu::mmu::Memory;
+use ::mmu::mmu::Memory;
 
 pub struct Interconnect {
     memory: Memory

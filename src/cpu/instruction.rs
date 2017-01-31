@@ -57,7 +57,7 @@ pub enum Operation {
 
 impl Instruction {
     #[inline]
-    pub fn is_prefix(&self) -> bool {
+    pub fn is_prefixed(&self) -> bool {
         self.0 == 0xCB
     }
 
