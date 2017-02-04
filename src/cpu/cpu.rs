@@ -10,13 +10,12 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new(interconnect: &Interconnect) -> Cpu {
+    pub fn new() -> Cpu {
         Cpu {
             registers: [0u8; 7],
             flags: 0u8,
             stack_pointer: 0u16,
-            program_counter: 0u16,
-            interconnect: interconnect
+            program_counter: 0u16
         }
     }
 
