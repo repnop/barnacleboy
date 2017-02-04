@@ -1,5 +1,5 @@
 use cpu::instruction::{Instruction, Operation};
-use ::interconnect::interconnect::Interconnect;
+use ::interconnect::Interconnect;
 use cpu::cpuconsts::*;
 
 pub struct Cpu {
