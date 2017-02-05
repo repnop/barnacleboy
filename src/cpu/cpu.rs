@@ -1,5 +1,5 @@
 use cpu::instruction::{Instruction, Operation};
-use ::interconnect::interconnect::Interconnect;
+use ::interconnect::Interconnect;
 use cpu::cpuconsts::*;
 
 pub struct Cpu {
@@ -10,23 +10,22 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new(interconnect: &Interconnect) -> Cpu {
+    pub fn new() -> Cpu {
         Cpu {
             registers: [0u8; 7],
             flags: 0u8,
             stack_pointer: 0u16,
-            program_counter: 0u16,
-            interconnect: interconnect
+            program_counter: 0u16
         }
     }
 
-    pub fn execute_instruction(&mut self, interconnect: &Interconnect) {
-        let instr_byte = Instruction(interconnect.memory.read_byte(self.program_counter));
+    pub fn execute_instruction(&mut self, interconnect: &mut Interconnect) {
+        let mut instr_byte = Instruction(interconnect.mem_read_byte(self.program_counter));
 
-        bool is_prefixed = instr_byte.is_prefixed();
+        let is_prefixed = instr_byte.is_prefixed();
 
         if is_prefixed {
-            instr_byte = Instruction(interconnect.memory.read_byte(self.program_counter + 1));
+            instr_byte = Instruction(interconnect.mem_read_byte(self.program_counter + 1));
             self.program_counter += 1; //Increment PC an extra time because of prefix byte
         }
 
@@ -58,14 +57,14 @@ impl Cpu {
                         // LD r, (HL) | r <- (HL) | r = XXX
                         else if instr_byte.0 & 0b0000_0111 == 0b0000_0110 {
                             let reg_to = instr_byte.0 & 0b0011_1000;
-                            self.registers[reg_to as usize] = interconnect.memory.read_byte(self.get_hl());
+                            self.registers[reg_to as usize] = interconnect.mem_read_byte(self.get_hl());
                         }
 
                         // 0b01110XXX loads into memory at (HL) from register r
                         // LD (HL), r | (HL) <- r | r = XXX
                         else if instr_byte.0 & 0b0011_1000 == 0b0011_0000 {
                             let reg_from = instr_byte.0 & 0b0000_0111;
-                            interconnect.memory.write_byte(self.get_hl(), self.registers[reg_from as usize]);
+                            interconnect.mem_write_byte(self.get_hl(), self.registers[reg_from as usize]);
                         }
 
                     }
@@ -77,14 +76,15 @@ impl Cpu {
                         // LD r, n | r <- n | r = XXX, n follows the instruction byte
                         if instr_byte.0 & 0b0000_0111 == 0b0000_0110 {
                             let reg_to = instr_byte.0 & 0b0011_1000;
-                            self.registers[reg_to as usize] = interconnect.memory.read_byte(self.program_counter + 1);
+                            self.registers[reg_to as usize] = interconnect.mem_read_byte(self.program_counter + 1);
                             self.program_counter += 1;
                         }
 
                         // 0b00110110 is an 8-bit immediate LD from memory pointed to by (HL) from the next byte
                         // LD (HL), n | n follows the instruction byte
                         else if instr_byte.0 & 0b0011_1111 == 0b0011_0110 {
-                            interconnect.memory.write_byte(self.get_hl(), interconnect.memory.read_byte(self.program_counter + 1));
+                            let val = interconnect.mem_read_byte(self.program_counter + 1);
+                            interconnect.mem_write_byte(self.get_hl(), val);
                             self.program_counter += 1;
                         }
                     }
@@ -94,10 +94,12 @@ impl Cpu {
 
                     }
                  },
+
+                 _ => unimplemented!()
             }
         } else {
             match instr_byte.get_opcode_type_prefixed() {
-
+                _ => unimplemented!()
             }
         }
     }
