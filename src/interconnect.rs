@@ -1,14 +1,12 @@
-use ::mmu::mmu::Memory;
+use mmu::mmu::Memory;
 
 pub struct Interconnect {
-    memory: Memory
+    memory: Memory,
 }
 
 impl Interconnect {
     pub fn new() -> Interconnect {
-        Interconnect {
-            memory: Memory::new()
-        }
+        Interconnect { memory: Memory::new() }
     }
 
     pub fn mem_read_byte(&self, mem_loc: u16) -> u8 {

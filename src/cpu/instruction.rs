@@ -52,7 +52,7 @@ pub enum Operation {
     Stop,
     Sub,
     Swap,
-    Xor
+    Xor,
 }
 
 impl Instruction {
@@ -92,7 +92,10 @@ impl Instruction {
             0xC4 | 0xD4 | 0xCC | 0xDC | 0xCD => Operation::Call,
 
             //TODO: find a way to put on multiple lines
-            0x41 ... 0x4F | 0x50 ... 0x5F | 0x60 ... 0x6F | 0x70 ... 0x7F | 0x06 | 0x16 | 0x26 | 0x36 | 0x0A | 0x1A | 0x2A | 0x3A | 0x0E | 0x1E | 0x2E | 0x3E | 0xE2 | 0xF2 | 0xEA | 0xFA => Operation::Ld8, //Match will short-circuit the values that are in this range that go to Nop
+            0x41...0x4F | 0x50...0x5F | 0x60...0x6F | 0x70...0x7F | 0x06 | 0x16 | 0x26 | 0x36 |
+            0x0A | 0x1A | 0x2A | 0x3A | 0x0E | 0x1E | 0x2E | 0x3E | 0xE2 | 0xF2 | 0xEA | 0xFA => {
+                Operation::Ld8
+            } //Match will short-circuit the values that are in this range that go to Nop
 
             0x01 | 0x11 | 0x21 | 0x31 | 0x08 | 0xF9 | 0xF8 => Operation::Ld16,
 
@@ -108,14 +111,14 @@ impl Instruction {
 
             0x0B | 0x1B | 0x2B | 0x3B => Operation::Dec16,
 
-            0x80 ... 0x87 | 0xC6 => Operation::Add8,
-            0x88 ... 0x8F | 0xCE => Operation::Adc,
-            0x90 ... 0x97 | 0xD6 => Operation::Sub,
-            0x98 ... 0x9F | 0xDE => Operation::Sbc,
-            0xA0 ... 0xA7 | 0xE6 => Operation::And,
-            0xA8 ... 0xAF | 0xEE => Operation::Xor,
-            0xB0 ... 0xB7 | 0xF6 => Operation::Or,
-            0xB8 ... 0xBF | 0xFE => Operation::Cp,
+            0x80...0x87 | 0xC6 => Operation::Add8,
+            0x88...0x8F | 0xCE => Operation::Adc,
+            0x90...0x97 | 0xD6 => Operation::Sub,
+            0x98...0x9F | 0xDE => Operation::Sbc,
+            0xA0...0xA7 | 0xE6 => Operation::And,
+            0xA8...0xAF | 0xEE => Operation::Xor,
+            0xB0...0xB7 | 0xF6 => Operation::Or,
+            0xB8...0xBF | 0xFE => Operation::Cp,
 
             0xC1 | 0xD1 | 0xE1 | 0xF1 => Operation::Pop,
             0xC5 | 0xD5 | 0xE5 | 0xF5 => Operation::Push,
@@ -125,32 +128,32 @@ impl Instruction {
             0xF3 => Operation::Di,
             0xFB => Operation::Ei,
 
-            _ => panic!("Unrecognized instruction: {:#x}", self.0)
+            _ => panic!("Unrecognized instruction: {:#x}", self.0),
         }
     }
 
     pub fn get_opcode_type_prefixed(&self) -> Operation {
         match self.0 {
 
-            0x00 ... 0x07 => Operation::Rlc,
-            0x08 ... 0x0F => Operation::Rrc,
+            0x00...0x07 => Operation::Rlc,
+            0x08...0x0F => Operation::Rrc,
 
-            0x10 ... 0x17 => Operation::Rl,
-            0x18 ... 0x1F => Operation::Rr,
+            0x10...0x17 => Operation::Rl,
+            0x18...0x1F => Operation::Rr,
 
-            0x20 ... 0x27 => Operation::Sla,
-            0x28 ... 0x2F => Operation::Sra,
+            0x20...0x27 => Operation::Sla,
+            0x28...0x2F => Operation::Sra,
 
-            0x30 ... 0x37 => Operation::Swap,
-            0x38 ... 0x3F => Operation::Srl,
+            0x30...0x37 => Operation::Swap,
+            0x38...0x3F => Operation::Srl,
 
-            0x40 ... 0x7F => Operation::Bit,
+            0x40...0x7F => Operation::Bit,
 
-            0x80 ... 0xBF => Operation::Res,
+            0x80...0xBF => Operation::Res,
 
-            0xC0 ... 0xFF => Operation::Set,
+            0xC0...0xFF => Operation::Set,
 
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
