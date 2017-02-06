@@ -109,9 +109,11 @@ impl Cpu {
                             self.registers[REG_A_INDEX] = interconnect.mem_read_byte(self.get_hl());
 
                             if instr_byte.0 & 0b00010000 == 0b00000000 {
-                                self.set_hl(self.get_hl() + 1);
+                                let new_hl = self.get_hl() + 1;
+                                self.set_hl(new_hl);
                             } else {
-                                self.set_hl(self.get_hl() - 1);
+                                let new_hl = self.get_hl() - 1;
+                                self.set_hl(new_hl);
                             }
                         }
                     } // END 00 BLOCK
