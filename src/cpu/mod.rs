@@ -1,13 +1,13 @@
 //! # LR35902 CPU Emulator
-//! 
+//!
 //! Information credit:
 //! All information in this documentation is found from:
 //! [Gameboy CPU Manual v1.01 by DP](http://marc.rawer.de/Gameboy/Docs/GBCPUman.pdf)
 //! Official Gameboy Programming Manual
 //!
-//! This module defines the structures and functions 
+//! This module defines the structures and functions
 //! for use in emulating the LR35902 CPU architecture.
-//! 
+//!
 //! The LR35902 is a CPU based on the ZiLOG Z80 processor
 //! which is a processor designed for compatibility with
 //! the Intel 8080 microprocessor.
@@ -15,7 +15,7 @@
 //! ## Differences
 //! The LR35902 does, however, have some differences from
 //! the ZiLOG Z80:
-//! 
+//!
 //! ### Registers
 //! Unlike the Z80, the LR35902 does not contain a set of
 //! alternate registers. It also does not contain the index
@@ -25,7 +25,7 @@
 //! Some of the LR35902 instructions differ from their Z80
 //! counterparts, along with some additions and removal of
 //! various instructions.
-//! 
+//!
 //! #### Added Instructions
 //! `ADD SP, nn` where `nn` is a signed byte.
 //! `LDI (HL), A` Loads the value in A into HL and increments HL
@@ -65,8 +65,8 @@
 //! E | 011
 //! H | 100
 //! L | 101
-//! 
-//! 
+//!
+//!
 pub mod cpu;
 pub mod instruction;
 pub mod cpuconsts;

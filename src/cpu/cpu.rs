@@ -69,9 +69,9 @@ impl Cpu {
 
                     } // END 01 BLOCK
 
-                    // 00 BLOCK 
+                    // 00 BLOCK
                     else if instr_byte.0 & 0b1100_0000 == 0b0000_0000 {
-                        
+
                         // 0b00XXX110 is an 8-bit immediate load from the next byte
                         // LD r, n | r <- n | r = XXX, n follows the instruction byte
                         if instr_byte.0 & 0b0000_0111 == 0b0000_0110 {
@@ -118,7 +118,7 @@ impl Cpu {
                         }
                     } // END 00 BLOCK
 
-                    // 11 BLOCK 
+                    // 11 BLOCK
                     else {
 
                         // 0b11110010 is an 8-bit load from memory pointed to by (0xFF00 + reg C) into register A
