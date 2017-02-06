@@ -18,4 +18,12 @@ impl Interconnect {
     pub fn mem_write_byte(&mut self, mem_loc: u16, value: u8) {
         self.memory.write_byte(mem_loc, value);
     }
+
+    pub fn mem_read_word(&self, mem_loc: u16) -> u16 {
+        self.memory.read_word(mem_loc)
+    }
+
+    pub fn mem_write_word(&mut self, mem_loc: u16, value: u16) {
+        self.memory.write_word(mem_loc, value);
+    }
 }
