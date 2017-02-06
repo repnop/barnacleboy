@@ -105,7 +105,7 @@ impl Memory {
     }
 
     pub fn write_word(&mut self, mem_loc: u16, value: u16) {
-        self.write_byte(mem_loc, (value & 0xFF00) as u8);
+        self.write_byte(mem_loc, (value >> 8) as u8);
         self.write_byte(mem_loc + 1, (value & 0x00FF) as u8);
     }
 }
