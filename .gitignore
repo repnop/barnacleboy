@@ -2,3 +2,4 @@ target
 docs
 .vscode
 roms
+*.bk

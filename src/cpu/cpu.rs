@@ -6,7 +6,7 @@ pub struct Cpu {
     registers: [u8; 8],
     flags: u8,
     stack_pointer: u16,
-    program_counter: u16
+    program_counter: u16,
 }
 
 impl Cpu {
@@ -15,7 +15,7 @@ impl Cpu {
             registers: [0u8; 8], // Extra array slot for compatibility with opcode indices
             flags: 0u8,
             stack_pointer: 0u16,
-            program_counter: 0u16
+            program_counter: 0u16,
         }
     }
 
@@ -26,17 +26,19 @@ impl Cpu {
 
         if is_prefixed {
             instr_byte = Instruction(interconnect.mem_read_byte(self.program_counter + 1));
-            self.program_counter += 1; //Increment PC an extra time because of prefix byte
+            self.program_counter += 1; // Increment PC an extra time because of prefix byte
         }
 
-        self.program_counter += 1; //Increment PC so that it points to the next byte, in-instruction values will also inc the PC
+        // Increment PC so that it points to the next byte,
+        // in-instruction values will also inc the PC
+        self.program_counter += 1;
 
         if !is_prefixed {
             match instr_byte.get_opcode_type_nonprefix() {
-                Operation::Nop => { },
+                Operation::Nop => {}
                 Operation::Ld8 => {
-                    // Since the only difference between many of the LD opcodes is specific values, we have to check them to know
-                    // which operation to preform
+                    // Since the only difference between many of the LD opcodes is specific values,
+                    // we have to check them to know which operation to preform
 
                     // Because of how unfriendly the opcodes are, grouping them based on
                     // bits 7 and 6 to begin helps to group
@@ -52,23 +54,24 @@ impl Cpu {
 
                             self.registers[reg_to as usize] = self.registers[reg_from as usize];
                         }
-
                         // 0b01XXX110 loads into dest. register r the value pointed at by (HL)
                         // LD r, (HL) | r <- (HL) | r = XXX
                         else if instr_byte.0 & 0b0000_0111 == 0b0000_0110 {
                             let reg_to = instr_byte.0 & 0b0011_1000;
-                            self.registers[reg_to as usize] = interconnect.mem_read_byte(self.get_hl());
+                            self.registers[reg_to as usize] =
+                                interconnect.mem_read_byte(self.get_hl());
                         }
-
                         // 0b01110XXX loads into memory at (HL) from register r
                         // LD (HL), r | (HL) <- r | r = XXX
                         else if instr_byte.0 & 0b0011_1000 == 0b0011_0000 {
                             let reg_from = instr_byte.0 & 0b0000_0111;
-                            interconnect.mem_write_byte(self.get_hl(), self.registers[reg_from as usize]);
+                            interconnect.mem_write_byte(self.get_hl(),
+                                                        self.registers[reg_from as usize]);
                         }
 
-                    } // END 01 BLOCK
-
+                    }
+                    // END 01 BLOCK
+                    //
                     // 00 BLOCK
                     else if instr_byte.0 & 0b1100_0000 == 0b0000_0000 {
 
@@ -76,30 +79,30 @@ impl Cpu {
                         // LD r, n | r <- n | r = XXX, n follows the instruction byte
                         if instr_byte.0 & 0b0000_0111 == 0b0000_0110 {
                             let reg_to = instr_byte.0 & 0b0011_1000;
-                            self.registers[reg_to as usize] = interconnect.mem_read_byte(self.program_counter);
+                            self.registers[reg_to as usize] =
+                                interconnect.mem_read_byte(self.program_counter);
                             self.program_counter += 1;
                         }
-
-                        // 0b00110110 is an 8-bit immediate LD from memory pointed to by (HL) from the next byte
+                        // 0b00110110 is an 8-bit immediate LD from memory pointed to
+                        //  by (HL) from the next byte
                         // LD (HL), n | n follows the instruction byte
                         else if instr_byte.0 & 0b0011_1111 == 0b0011_0110 {
                             let val = interconnect.mem_read_byte(self.program_counter);
                             interconnect.mem_write_byte(self.get_hl(), val);
                             self.program_counter += 1;
                         }
-
-                        // 0b00001010 is an 8-bit load from memory pointed to by (BC) into register A
+                        // 0b00001010 is an 8-bit load from memory pointed to
+                        //  by (BC) into register A
                         // LD A, (BC) | A <- mem[BC]
                         else if instr_byte.0 == 0b00001010 {
                             self.registers[REG_A_INDEX] = interconnect.mem_read_byte(self.get_bc());
                         }
-
-                        // 0b00011010 is an 8-bit load from memory pointed to by (DE) into register A
+                        // 0b00011010 is an 8-bit load from memory pointed to
+                        //  by (DE) into register A
                         // LD A, (DE) | A <- mem[DE]
                         else if instr_byte.0 == 0b00011010 {
                             self.registers[REG_A_INDEX] = interconnect.mem_read_byte(self.get_de());
                         }
-
                         // 0b00101010 OR 0b00111010
                         // These are the LDI A, (HL) and LDD A, (HL) instructions, respectively
                         // They are the same as LD A, (HL) except that
@@ -116,49 +119,55 @@ impl Cpu {
                                 self.set_hl(new_hl);
                             }
                         }
-                    } // END 00 BLOCK
-
+                    }
+                    // END 00 BLOCK
+                    //
                     // 11 BLOCK
                     else {
 
-                        // 0b11110010 is an 8-bit load from memory pointed to by (0xFF00 + reg C) into register A
+                        // 0b11110010 is an 8-bit load from memory pointed to
+                        //  by (0xFF00 + reg C) into register A
                         // LD A, (0xFF00 + C) | A <- mem[0xFF00 + C]
                         if instr_byte.0 == 0b11110010 {
-                            self.registers[REG_A_INDEX] = interconnect.mem_read_byte(0xFF00 + self.registers[REG_C_INDEX] as u16);
+                            self.registers[REG_A_INDEX] =
+                                interconnect.mem_read_byte(0xFF00 +
+                                                            self.registers[REG_C_INDEX] as u16);
                         }
-
-                        // 0b11100010 is an 8-bit load from register A to memory location (0xFF00 + C)
+                        // 0b11100010 is an 8-bit load from register A to
+                        //  memory location (0xFF00 + C)
                         // LD (0xFF00 + C), A  | mem[0xFF00 + C] <- A
                         else if instr_byte.0 == 0b11100010 {
-                            interconnect.mem_write_byte(0xFF00 + self.registers[REG_C_INDEX] as u16, self.registers[REG_A_INDEX]);
+                            interconnect.mem_write_byte(0xFF00 + self.registers[REG_C_INDEX] as u16,
+                                                self.registers[REG_A_INDEX]);
                         }
-
-                        // 0b11110000 is an 8-bit load from memory pointed to by (0xFF00 + n) to register A
+                        // 0b11110000 is an 8-bit load from memory pointed to
+                        //  by (0xFF00 + n) to register A
                         // LD A, (0xFF00 + n) | A <- mem[0xFF00 + n]
                         else if instr_byte.0 == 0b11100010 {
                             let val = interconnect.mem_read_byte(self.program_counter);
-                            self.registers[REG_A_INDEX] = interconnect.mem_read_byte(0xFF00 + val as u16);
+                            self.registers[REG_A_INDEX] =
+                                interconnect.mem_read_byte(0xFF00 + val as u16);
                             self.program_counter += 1;
                         }
-
-                        // 0b11110000 is an 8-bit load to memory pointed to by (0xFF00 + n) from register A
+                        // 0b11110000 is an 8-bit load to memory pointed to
+                        //  by (0xFF00 + n) from register A
                         // LD (0xFF00 + n), A | mem[0xFF00 + n] <- A
                         else if instr_byte.0 == 0b11100010 {
                             let val = interconnect.mem_read_byte(self.program_counter);
-                            interconnect.mem_write_byte(0xFF00 + val as u16, self.registers[REG_A_INDEX]);
+                            interconnect.mem_write_byte(0xFF00 + val as u16,
+                                                        self.registers[REG_A_INDEX]);
                             self.program_counter += 1;
                         }
-
-
-                        // 0b11111010 is an 8-bit load from memory pointed to by (nn) to register A
+                        // 0b11111010 is an 8-bit load from memory pointed to
+                        //  by (nn) to register A
                         // LD A, (nn) | A <- mem[nn]
                         else if instr_byte.0 == 0b11111010 {
                             let val = interconnect.mem_read_word(self.program_counter);
                             self.registers[REG_A_INDEX] = interconnect.mem_read_byte(val);
                             self.program_counter += 2;
                         }
-
-                        // 0b11101010 is an 8-bit load to memory pointed to by (nn) from register A
+                        // 0b11101010 is an 8-bit load to memory pointed to
+                        //  by (nn) from register A
                         // LD (nn), A | mem[nn] <- A
                         else if instr_byte.0 == 0b11101010 {
                             let val = interconnect.mem_read_word(self.program_counter);
@@ -166,13 +175,13 @@ impl Cpu {
                             self.program_counter += 2;
                         }
                     } // END 11 BLOCK
-                 },
+                }
 
-                 _ => unimplemented!()
+                _ => unimplemented!(),
             }
         } else {
             match instr_byte.get_opcode_type_prefixed() {
-                _ => unimplemented!()
+                _ => unimplemented!(),
             }
         }
     }
