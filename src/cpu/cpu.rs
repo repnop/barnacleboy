@@ -17,11 +17,11 @@ enum Flags {
 }
 
 enum RegisterPairs {
-    AF = 4,
-    BC = 0,
-    DE = 1,
-    HL = 2,
-    SP = 3,
+    AF,
+    BC,
+    DE,
+    HL,
+    SP,
 }
 
 impl Cpu {
@@ -257,11 +257,31 @@ impl Cpu {
                     }
                     // 0b1111_1000 is a 16-bit load into HL from
                     // SP + e, where e is a signed 8-bit number following the
-                    // opcode
+                    // opcode. This instruction clears the subtraction and zero
+                    // flags while setting the H and CY flags if they occur.
                     // LDHL SP, e | HL <- SP + e
                     else if instr_byte.0 == 0b1111_1000 {
                         let val = interconnect.mem_read_byte(self.program_counter) as i8;
+                        let carry_in = (((self.stack_pointer & 0x07FF) as i16 + 
+                                            (val as i16)) & 0x0800) >> 11;
+                        let carry_out = ((self.stack_pointer as i16 + val as i16) & 0x1000) >> 12;
 
+                        if carry_in ^ carry_out == 1 {
+                            self.set_flag(Flags::HalfCarry);
+                        } else {
+                            self.clear_flag(Flags::HalfCarry);
+                        }
+
+                        let (val, result) = (self.stack_pointer as i16).overflowing_add(val as i16);
+                        self.stack_pointer = val as u16;
+                        if result {
+                            self.set_flag(Flags::FullCarry);
+                        } else {
+                            self.clear_flag(Flags::FullCarry);
+                        }
+
+                        self.clear_flag(Flags::Zero);
+                        self.clear_flag(Flags::Subtract);
 
                         self.program_counter += 1;
                     }
