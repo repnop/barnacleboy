@@ -273,7 +273,7 @@ impl Cpu {
                         }
 
                         let (val, result) = (self.stack_pointer as i16).overflowing_add(val as i16);
-                        self.stack_pointer = val as u16;
+                        self.set_register_pair(RegisterPairs::HL, val as u16);
                         if result {
                             self.set_flag(Flags::FullCarry);
                         } else {
