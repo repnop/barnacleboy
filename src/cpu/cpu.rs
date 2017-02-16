@@ -239,7 +239,7 @@ impl Cpu {
                     // 10 -> HL
                     // 11 -> SP
                     if instr_byte.0 & 0b1100_1111 == 0b0000_0001 {
-                        let val = interconnect.mem_read_word_little_endian(self.program_counter);
+                        let val = interconnect.mem_read_word(self.program_counter);
                         match (instr_byte.0 >> 4) & 0x3 {
                             0b0000_0000 => self.set_register_pair(RegisterPairs::BC, val),
                             0b0000_0001 => self.set_register_pair(RegisterPairs::DE, val),
@@ -285,7 +285,54 @@ impl Cpu {
 
                         self.program_counter += 1;
                     }
+                    // 0b0000_1000 is a 16-bit load into the memory address pointed
+                    // to by (nn), a 16-bit constant located after the opcode
+                    // LD (nn), SP | (nn) <- SP[low], (nn+1) <- SP[high]
+                    else if instr_byte.0 == 0b0000_1000 {
+                        let val = interconnect.mem_read_word(self.program_counter);
 
+                        interconnect.mem_write_word(val, self.stack_pointer);
+
+                        self.program_counter += 2;
+                    }
+
+
+                }
+                Operation::Pop => {
+                    
+                    // Push qq where qq is one of the following:
+                    // 
+                    // Register Pair | qq
+                    //      BC       | 00
+                    //      DE       | 01
+                    //      HL       | 10
+                    //      AF       | 11
+                    //
+                    // Pushes the high and low byte of a register
+                    // pair onto the stack and decrements the SP
+                    if instr_byte.0 & 0b1100_1111 == 0b11000101 {
+                        let rp = (instr_byte.0 & 0b0011_0000) >> 4;
+                        let (h, l) = (0u8, 0u8);
+                        match rp {
+
+                            0 => {
+                                h = self.registers[REG_B_INDEX];
+                                l = self.registers[REG_C_INDEX];
+                            },
+                            1 => {
+                                h = self.registers[REG_D_INDEX];
+                                l = self.registers[REG_E_INDEX];
+                            },
+                            2 => {
+                                h = self.registers[REG_H_INDEX];
+                                l = self.registers[REG_L_INDEX];
+                            },
+                            3 => {
+                                h = self.registers[REG_A_INDEX];
+                                l = self.flags;
+                            }
+                        }
+                    }
                 }
                 _ => unimplemented!(),
             }
