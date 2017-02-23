@@ -298,7 +298,7 @@ impl Cpu {
 
 
                 }
-                Operation::Pop => {
+                Operation::Push => {
                     
                     // Push qq where qq is one of the following:
                     // 
@@ -332,7 +332,52 @@ impl Cpu {
                                 l = self.flags;
                             }
                         }
+
+                        interconnect.mem_write_byte(self.stack_pointer - 1, h);
+                        interconnect.mem_write_byte(self.stack_pointer - 2, l);
+                        self.stack_pointer -= 2;
                     }
+                }
+                Operation::Pop => {
+
+                    // Pop qq where qq is one of the following:
+                    // 
+                    // Register Pair | qq
+                    //      BC       | 00
+                    //      DE       | 01
+                    //      HL       | 10
+                    //      AF       | 11
+                    //
+                    // Pops the high and low byte into a register
+                    // pair from the stack and increments the SP
+                    if instr_byte.0 & 0b1100_1111 == 0b11000001 {
+                        let rp = (instr_byte.0 & 0b0011_0000) >> 4;
+                        let (h, l) = (interconnect.mem_read_byte(self.stack_pointer), 
+                                      interconnect.mem_read_byte(self.stack_pointer + 1));
+                        match rp {
+
+                            0 => {
+                                self.registers[REG_B_INDEX] = h;
+                                self.registers[REG_C_INDEX] = l;
+                            },
+                            1 => {
+                                self.registers[REG_D_INDEX] = h;
+                                self.registers[REG_E_INDEX] = l;
+                            },
+                            2 => {
+                                self.registers[REG_H_INDEX] = h;
+                                self.registers[REG_L_INDEX] = l;
+                            },
+                            3 => {
+                                self.registers[REG_A_INDEX] = h;
+                                self.flags = l;
+                            }
+                        }
+                        self.stack_pointer += 2;
+                    }
+                }
+                Operation::Add8 => {
+
                 }
                 _ => unimplemented!(),
             }
