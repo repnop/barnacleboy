@@ -97,6 +97,7 @@ impl Memory {
     // The Gameboy's processor is natively little endian,
     // so it stores values MN in memory where M is the low
     // byte and N the high byte for 16-bit values
+    // big endian is the reverse, so flip the bytesE
     pub fn read_word_big_endian(&self, mem_loc: u16) -> u16 {
         ((self.read_byte(mem_loc + 1) as u16) << 8) | (self.read_byte(mem_loc) as u16)
     }

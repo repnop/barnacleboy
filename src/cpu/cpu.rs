@@ -1,5 +1,5 @@
 use cpu::instruction::{Instruction, Operation};
-use ::interconnect::Interconnect;
+use interconnect::Interconnect;
 use cpu::cpuconsts::*;
 
 pub struct Cpu {
@@ -61,24 +61,44 @@ impl Cpu {
                     // 01 BLOCK
                     if instr_byte.0 & 0b1100_0000 == 0b0100_0000 {
 
-                        // 0b01XXXYYY where YYY != 110 is an 8-bit LD from one register to the other
-                        // LD r, r' | r <- r' | r = XXX, r' = YYY
+                        // LD r, r'
+                        // An 8-bit load from register r' into
+                        //  register r.
+                        //
+                        // The register codes are
+                        //  bits [3, 5] = r
+                        //  bits [0, 2] = r'
+                        //
+                        // Flags affected:
+                        //  None
                         if instr_byte.0 & 0b0000_0111 != 0b0000_0110 {
                             let reg_to = instr_byte.0 & 0b0011_1000;
                             let reg_from = instr_byte.0 & 0b0000_0111;
 
                             self.registers[reg_to as usize] = self.registers[reg_from as usize];
                         }
-                        // 0b01XXX110 loads into dest. register r the value pointed at by (HL)
-                        // LD r, (HL) | r <- (HL) | r = XXX
+                        // LD r, (HL)
+                        // An 8-bit load from the address pointed
+                        //  to by HL into register r.
+                        //
+                        // The register code is bits [3, 5] = r
+                        //
+                        // Flags affected:
+                        //  None
                         else if instr_byte.0 & 0b0000_0111 == 0b0000_0110 {
                             let reg_to = instr_byte.0 & 0b0011_1000;
                             self.registers[reg_to as usize] =
                                 interconnect.mem_read_byte(
                                         self.get_register_pair(RegisterPairs::HL));
                         }
-                        // 0b01110XXX loads into memory at (HL) from register r
-                        // LD (HL), r | (HL) <- r | r = XXX
+                        // LD (HL), r
+                        // An 8-bit load into the address pointed
+                        //  to by HL from register r.
+                        //
+                        // The register code is bits [0, 2] = r
+                        //
+                        // Flags affected:
+                        //  None
                         else if instr_byte.0 & 0b0011_1000 == 0b0011_0000 {
                             let reg_from = instr_byte.0 & 0b0000_0111;
                             interconnect.mem_write_byte(self.get_register_pair(RegisterPairs::HL),
@@ -91,44 +111,63 @@ impl Cpu {
                     // 00 BLOCK
                     else if instr_byte.0 & 0b1100_0000 == 0b0000_0000 {
 
-                        // 0b00XXX110 is an 8-bit immediate load from the next byte
-                        // LD r, n | r <- n | r = XXX, n follows the instruction byte
+                        // LD r, n
+                        // An 8-bit load into register r
+                        //  from an immediate byte following
+                        //  the instruction.
+                        //
+                        // The register code is bits [3, 5] = r
+                        //
+                        // Flags affected:
+                        //  None
                         if instr_byte.0 & 0b0000_0111 == 0b0000_0110 {
                             let reg_to = instr_byte.0 & 0b0011_1000;
                             self.registers[reg_to as usize] =
                                 interconnect.mem_read_byte(self.program_counter);
                             self.program_counter += 1;
                         }
-                        // 0b00110110 is an 8-bit immediate LD from memory pointed to
-                        //  by (HL) from the next byte
-                        // LD (HL), n | n follows the instruction byte
+                        // LD (HL), n
+                        // An 8-bit load into the address pointed
+                        //  to by HL from an immediate byte following
+                        //  the instruction.
+                        //
+                        // Flags affected:
+                        //  None
                         else if instr_byte.0 & 0b0011_1111 == 0b0011_0110 {
                             let val = interconnect.mem_read_byte(self.program_counter);
                             interconnect.mem_write_byte(
                                             self.get_register_pair(RegisterPairs::HL), val);
                             self.program_counter += 1;
                         }
-                        // 0b00001010 is an 8-bit load from memory pointed to
-                        //  by (BC) into register A
-                        // LD A, (BC) | A <- mem[BC]
+                        // LD A, (BC)
+                        // An 8-bit load from the memory pointed
+                        //  to by BC into register A.
+                        //
+                        // Flags affected:
+                        //  None
                         else if instr_byte.0 == 0b0000_1010 {
                             self.registers[REG_A_INDEX] =
                                 interconnect.mem_read_byte(
                                         self.get_register_pair(RegisterPairs::BC));
                         }
-                        // 0b00011010 is an 8-bit load from memory pointed to
-                        //  by (DE) into register A
-                        // LD A, (DE) | A <- mem[DE]
+                        // LD A, (DE)
+                        // An 8-bit load from the memory pointed
+                        //  to by DE into register A.
+                        //
+                        // Flags affected:
+                        //  None
                         else if instr_byte.0 == 0b0001_1010 {
                             self.registers[REG_A_INDEX] =
                                 interconnect.mem_read_byte(
                                         self.get_register_pair(RegisterPairs::DE));
                         }
-                        // 0b00101010 OR 0b00111010
-                        // These are the LDI A, (HL) and LDD A, (HL) instructions, respectively
+                        // LDI A, (HL) | LDD A, (HL)
                         // They are the same as LD A, (HL) except that
-                        // LDI increments HL after storing the value in A
-                        // LDD decrements HL after storing the value in A
+                        //  LDI increments HL after storing the value in A;
+                        //  LDD decrements HL after storing the value in A.
+                        //
+                        // Flags affected:
+                        //  None
                         else if instr_byte.0 & 0b1110_1111 == 0b0010_1010 {
                             self.registers[REG_A_INDEX] =
                                 interconnect.mem_read_byte(
@@ -142,23 +181,33 @@ impl Cpu {
                                 self.set_register_pair(RegisterPairs::HL, new_hl);
                             }
                         }
-                        // 0b00000010 is an 8-bit load from register A
-                        // to the memory location pointed to by (BC)
+                        // LD (BC), A
+                        // An 8-bit load to the memory pointed
+                        //  to by BC from register A.
+                        //
+                        // Flags affected:
+                        //  None
                         else if instr_byte.0 == 0b0000_0010 {
                             interconnect.mem_write_byte(self.get_register_pair(RegisterPairs::BC),
                                                         self.registers[REG_A_INDEX]);
                         }
-                        // 0b00010010 is an 8-bit load from register A
-                        // to the memory location pointed to by (DE)
+                        // LD (DE), A
+                        // An 8-bit load to the memory pointed
+                        //  to by DE from register A.
+                        //
+                        // Flags affected:
+                        //  None
                         else if instr_byte.0 == 0b0000_0010 {
                             interconnect.mem_write_byte(self.get_register_pair(RegisterPairs::DE),
                                                         self.registers[REG_A_INDEX]);
                         }
-                        // 0b00100010 OR 0b00110010
-                        // These are the LDI (HL), A and LDD (HL), A instructions, respectively
+                        // LDI (HL), A | LDD (HL), A
                         // They are the same as LD A, (HL) except that
-                        // LDI increments HL after storing the value from A
-                        // LDD decrements HL after storing the value from A
+                        //  LDI increments HL after storing the value from A;
+                        //  LDD decrements HL after storing the value from A.
+                        //
+                        // Flags affected:
+                        //  None
                         else if instr_byte.0 & 0b1110_1111 == 0b0010_0010 {
                             self.registers[REG_A_INDEX] =
                                 interconnect.mem_read_byte(
@@ -178,50 +227,72 @@ impl Cpu {
                     // 11 BLOCK
                     else {
 
-                        // 0b11110010 is an 8-bit load from memory pointed to
-                        //  by (0xFF00 + reg C) into register A
-                        // LD A, (0xFF00 + C) | A <- mem[0xFF00 + C]
+                        // LD A, (0xFF00 + C)
+                        // An 8-bit load from the address pointed
+                        //  to by 0xFF00 + C into A.
+                        //
+                        // Flags affected:
+                        //  None
                         if instr_byte.0 == 0b11110010 {
                             self.registers[REG_A_INDEX] =
                                 interconnect.mem_read_byte(0xFF00 +
                                                             self.registers[REG_C_INDEX] as u16);
                         }
-                        // 0b11100010 is an 8-bit load from register A to
-                        //  memory location (0xFF00 + C)
-                        // LD (0xFF00 + C), A  | mem[0xFF00 + C] <- A
+                        // LD (0xFF00 + C), A
+                        // An 8-bit load into the address pointed
+                        //  to by 0xFF00 + C from A.
+                        //
+                        // Flags affected:
+                        //  None
                         else if instr_byte.0 == 0b1110_0010 {
                             interconnect.mem_write_byte(0xFF00 + self.registers[REG_C_INDEX] as u16,
                                                 self.registers[REG_A_INDEX]);
                         }
-                        // 0b11110000 is an 8-bit load from memory pointed to
-                        //  by (0xFF00 + n) to register A
-                        // LD A, (0xFF00 + n) | A <- mem[0xFF00 + n]
+                        // LD A, (0xFF00 + n)
+                        // An 8-bit load from the address pointed
+                        //  to by 0xFF00 + n into A, where n is an
+                        //  immediate following the instruction.
+                        //
+                        // Flags affected:
+                        //  None
                         else if instr_byte.0 == 0b1110_0010 {
                             let val = interconnect.mem_read_byte(self.program_counter);
                             self.registers[REG_A_INDEX] =
                                 interconnect.mem_read_byte(0xFF00 + val as u16);
                             self.program_counter += 1;
                         }
-                        // 0b11110000 is an 8-bit load to memory pointed to
-                        //  by (0xFF00 + n) from register A
-                        // LD (0xFF00 + n), A | mem[0xFF00 + n] <- A
+                        // LD (0xFF00 + n), A
+                        // An 8-bit load into the address pointed
+                        //  to by 0xFF00 + n from A, where n is an
+                        //  immediate u8 following the instruction.
+                        //
+                        // Flags affected:
+                        //  None
                         else if instr_byte.0 == 0b1110_0010 {
                             let val = interconnect.mem_read_byte(self.program_counter);
                             interconnect.mem_write_byte(0xFF00 + val as u16,
                                                         self.registers[REG_A_INDEX]);
                             self.program_counter += 1;
                         }
-                        // 0b11111010 is an 8-bit load from memory pointed to
-                        //  by (nn) to register A
-                        // LD A, (nn) | A <- mem[nn]
+                        // LD A, (nn)
+                        // An 8-bit load from the address pointed
+                        //  to by nn into A, where nn is an
+                        //  immediate u16 following the instruction.
+                        //
+                        // Flags affected:
+                        //  None
                         else if instr_byte.0 == 0b1111_1010 {
                             let val = interconnect.mem_read_word(self.program_counter);
                             self.registers[REG_A_INDEX] = interconnect.mem_read_byte(val);
                             self.program_counter += 2;
                         }
-                        // 0b11101010 is an 8-bit load to memory pointed to
-                        //  by (nn) from register A
-                        // LD (nn), A | mem[nn] <- A
+                        // LD (nn), A
+                        // An 8-bit load into the address pointed
+                        //  to by nn from A, where nn is an
+                        //  immediate u16 following the instruction.
+                        //
+                        // Flags affected:
+                        //  None
                         else if instr_byte.0 == 0b1110_1010 {
                             let val = interconnect.mem_read_word(self.program_counter);
                             interconnect.mem_write_byte(val, self.registers[REG_A_INDEX]);
@@ -262,8 +333,8 @@ impl Cpu {
                     // LDHL SP, e | HL <- SP + e
                     else if instr_byte.0 == 0b1111_1000 {
                         let val = interconnect.mem_read_byte(self.program_counter) as i8;
-                        let carry_in = (((self.stack_pointer & 0x07FF) as i16 + 
-                                            (val as i16)) & 0x0800) >> 11;
+                        let carry_in = (((self.stack_pointer & 0x07FF) as i16 + (val as i16)) &
+                                        0x0800) >> 11;
                         let carry_out = ((self.stack_pointer as i16 + val as i16) & 0x1000) >> 12;
 
                         if carry_in ^ carry_out == 1 {
@@ -299,9 +370,9 @@ impl Cpu {
 
                 }
                 Operation::Push => {
-                    
+
                     // Push qq where qq is one of the following:
-                    // 
+                    //
                     // Register Pair | qq
                     //      BC       | 00
                     //      DE       | 01
@@ -312,25 +383,26 @@ impl Cpu {
                     // pair onto the stack and decrements the SP
                     if instr_byte.0 & 0b1100_1111 == 0b11000101 {
                         let rp = (instr_byte.0 & 0b0011_0000) >> 4;
-                        let (h, l) = (0u8, 0u8);
+                        let (mut h, mut l) = (0u8, 0u8);
                         match rp {
 
                             0 => {
                                 h = self.registers[REG_B_INDEX];
                                 l = self.registers[REG_C_INDEX];
-                            },
+                            }
                             1 => {
                                 h = self.registers[REG_D_INDEX];
                                 l = self.registers[REG_E_INDEX];
-                            },
+                            }
                             2 => {
                                 h = self.registers[REG_H_INDEX];
                                 l = self.registers[REG_L_INDEX];
-                            },
+                            }
                             3 => {
                                 h = self.registers[REG_A_INDEX];
                                 l = self.flags;
                             }
+                            _ => unreachable!(),
                         }
 
                         interconnect.mem_write_byte(self.stack_pointer - 1, h);
@@ -341,7 +413,7 @@ impl Cpu {
                 Operation::Pop => {
 
                     // Pop qq where qq is one of the following:
-                    // 
+                    //
                     // Register Pair | qq
                     //      BC       | 00
                     //      DE       | 01
@@ -352,32 +424,74 @@ impl Cpu {
                     // pair from the stack and increments the SP
                     if instr_byte.0 & 0b1100_1111 == 0b11000001 {
                         let rp = (instr_byte.0 & 0b0011_0000) >> 4;
-                        let (h, l) = (interconnect.mem_read_byte(self.stack_pointer), 
-                                      interconnect.mem_read_byte(self.stack_pointer + 1));
+                        let (mut h, mut l) = (interconnect.mem_read_byte(self.stack_pointer),
+                                              interconnect.mem_read_byte(self.stack_pointer + 1));
                         match rp {
 
                             0 => {
                                 self.registers[REG_B_INDEX] = h;
                                 self.registers[REG_C_INDEX] = l;
-                            },
+                            }
                             1 => {
                                 self.registers[REG_D_INDEX] = h;
                                 self.registers[REG_E_INDEX] = l;
-                            },
+                            }
                             2 => {
                                 self.registers[REG_H_INDEX] = h;
                                 self.registers[REG_L_INDEX] = l;
-                            },
+                            }
                             3 => {
                                 self.registers[REG_A_INDEX] = h;
                                 self.flags = l;
                             }
+                            _ => unreachable!(),
                         }
                         self.stack_pointer += 2;
                     }
                 }
                 Operation::Add8 => {
 
+                    // ADD A, r
+                    // Adds A and the value in r and stores into
+                    //  register A.
+                    //
+                    // The register code is bits [0, 2] = r
+                    //
+                    // Flags affected:
+                    //  FullCarry = *
+                    //  HalfCarry = *
+                    //  Subtract = 0
+                    //  Zero = *
+                    if instr_byte.0 & 0b1111_1000 == 0b1000_0000 {
+                        let val = self.registers[REG_A_INDEX];
+                        let reg = instr_byte.0 & 0b0000_0111;
+                        let carry_in = ((val & 0b0000_0111) +
+                                        (self.registers[reg as usize] & 0b0000_0111)) >>
+                                       3;
+                        let carry_out = (val + self.registers[reg as usize]) & 0b0001_0000;
+
+                        if carry_in ^ carry_out == 1 {
+                            self.set_flag(Flags::HalfCarry);
+                        } else {
+                            self.clear_flag(Flags::HalfCarry);
+                        }
+
+                        let (val, result) = self.registers[REG_A_INDEX]
+                            .overflowing_add(self.registers[reg as usize]);
+                        self.registers[REG_A_INDEX] = val;
+
+                        if val == 0 {
+                            self.set_flag(Flags::Zero);
+                        } else {
+                            self.clear_flag(Flags::Zero);
+                        }
+
+                        if result {
+                            self.set_flag(Flags::FullCarry);
+                        } else {
+                            self.clear_flag(Flags::FullCarry);
+                        }
+                    }
                 }
                 _ => unimplemented!(),
             }

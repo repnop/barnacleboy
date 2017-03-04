@@ -4,13 +4,13 @@ pub const MEMORY_SIZE: u16 = 0xFFFF;
 
 pub const CART_ROM_BANK_00_START: u16 = 0x0000;
 pub const CART_ROM_BANK_00_END: u16 = 0x3FFF;
-pub const CART_ROM_BANK_00_SIZE: usize = (CART_ROM_BANK_00_END - CART_ROM_BANK_00_START +
-                                          1) as usize;
+pub const CART_ROM_BANK_00_SIZE: usize = (CART_ROM_BANK_00_END - CART_ROM_BANK_00_START + 1) as
+                                         usize;
 
 pub const CART_ROM_BANK_NN_START: u16 = 0x4000;
 pub const CART_ROM_BANK_NN_END: u16 = 0x7FFF;
-pub const CART_ROM_BANK_NN_SIZE: usize = (CART_ROM_BANK_NN_END - CART_ROM_BANK_NN_START +
-                                          1) as usize;
+pub const CART_ROM_BANK_NN_SIZE: usize = (CART_ROM_BANK_NN_END - CART_ROM_BANK_NN_START + 1) as
+                                         usize;
 
 pub const CARTRIDGE_ROM_SIZE: usize = CART_ROM_BANK_00_SIZE + CART_ROM_BANK_NN_SIZE;
 
@@ -20,8 +20,8 @@ pub const VRAM_SIZE: usize = (VRAM_END - VRAM_START + 1) as usize;
 
 pub const CART_EXTERNAL_RAM_START: u16 = 0xA000;
 pub const CART_EXTERNAL_RAM_END: u16 = 0xBFFF;
-pub const CART_EXTERNAL_RAM_SIZE: usize = (CART_EXTERNAL_RAM_END - CART_EXTERNAL_RAM_START +
-                                           1) as usize;
+pub const CART_EXTERNAL_RAM_SIZE: usize = (CART_EXTERNAL_RAM_END - CART_EXTERNAL_RAM_START + 1) as
+                                          usize;
 
 pub const WORK_RAM_BANK_0_START: u16 = 0xC000;
 pub const WORK_RAM_BANK_0_END: u16 = 0xCFFF;
