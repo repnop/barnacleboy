@@ -21,10 +21,6 @@ impl Interconnect {
         self.memory.read_word(mem_loc)
     }
 
-    pub fn mem_read_word_big_endian(&self, mem_loc: u16) -> u16 {
-        self.memory.read_word_big_endian(mem_loc)
-    }
-
     pub fn mem_write_word(&mut self, mem_loc: u16, value: u16) {
         self.memory.write_word(mem_loc, value);
     }
