@@ -5,6 +5,7 @@ pub struct Memory {
     cart_ram: Box<[u8]>,
     video_ram: Box<[u8]>,
     work_ram: Box<[u8]>,
+    unused_ram: Box<[u8]>,
     sprite_attribute_table: Box<[u8]>,
     io_port_ram: Box<[u8]>,
     high_ram: Box<[u8]>,
@@ -18,6 +19,7 @@ impl Memory {
             cart_ram: vec![0; CART_EXTERNAL_RAM_SIZE].into_boxed_slice(),
             video_ram: vec![0; VRAM_SIZE].into_boxed_slice(),
             work_ram: vec![0; WORK_RAM_SIZE].into_boxed_slice(),
+            unused_ram: vec![0; UNUSED_RAM_SIZE].into_boxed_slice(),
             sprite_attribute_table: vec![0; SPRITE_ATTRIBUTE_TABLE_SIZE].into_boxed_slice(),
             io_port_ram: vec![0; IO_RAM_SIZE].into_boxed_slice(),
             high_ram: vec![0; HIGH_RAM_SIZE].into_boxed_slice(),
@@ -42,7 +44,7 @@ impl Memory {
                 self.sprite_attribute_table[(mem_loc - SPRITE_ATTRIBUTE_TABLE_START) as usize]
             }
             UNUSED_RAM_START...UNUSED_RAM_END => {
-                panic!("Attempted read from unusable RAM: {:#x}", mem_loc)
+               self.unused_ram[(mem_loc - UNUSED_RAM_START) as usize]
             }
             IO_RAM_START...IO_RAM_END => self.io_port_ram[(mem_loc - IO_RAM_START) as usize],
             HIGH_RAM_START...HIGH_RAM_END => self.high_ram[(mem_loc - HIGH_RAM_START) as usize],
@@ -74,7 +76,7 @@ impl Memory {
                     value;
             }
             UNUSED_RAM_START...UNUSED_RAM_END => {
-                panic!("Attempted read from unusable RAM: {:#x}", mem_loc)
+                self.unused_ram[(mem_loc - UNUSED_RAM_START) as usize] = value;
             }
             IO_RAM_START...IO_RAM_END => {
                 self.io_port_ram[(mem_loc - IO_RAM_START) as usize] = value;
@@ -91,11 +93,11 @@ impl Memory {
     }
 
     pub fn read_word(&self, mem_loc: u16) -> u16 {
-        ((self.read_byte(mem_loc) as u16) << 8) | (self.read_byte(mem_loc + 1) as u16)
+        ((self.read_byte(mem_loc + 1) as u16) << 8) | (0x00FF & (self.read_byte(mem_loc) as u16))
     }
 
     pub fn write_word(&mut self, mem_loc: u16, value: u16) {
-        self.write_byte(mem_loc, (value >> 8) as u8);
-        self.write_byte(mem_loc + 1, (value & 0x00FF) as u8);
+        self.write_byte(mem_loc + 1, (value >> 8) as u8);
+        self.write_byte(mem_loc, (value & 0x00FF) as u8);
     }
 }

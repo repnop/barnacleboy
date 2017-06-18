@@ -68,6 +68,7 @@
 //!
 //!
 pub mod cpu;
+pub mod cpu_exec_funcs;
 pub mod instruction;
 pub mod cpuconsts;
 pub mod tests;
