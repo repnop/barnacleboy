@@ -1,6 +1,17 @@
+// MMU CONSTANTS
+
 // All constants are inclusive for START ... END
 
 pub const MEMORY_SIZE: u16 = 0xFFFF;
+pub const MAX_ROM_BANKS: usize = 32;
+
+pub const ROM_BANKING_MODE: u8 = 0x00;
+pub const RAM_BANKING_MODE: u8 = 0x01;
+
+pub const RAM_BANK_SIZE: u16 = 8 * 1024;
+pub const ROM_BANK_SIZE: u16 = 32 * 1024;
+
+pub const BOOT_ROM_SIZE: usize = 0x100;
 
 pub const CART_ROM_BANK_00_START: u16 = 0x0000;
 pub const CART_ROM_BANK_00_END: u16 = 0x3FFF;
@@ -56,3 +67,54 @@ pub const HIGH_RAM_END: u16 = 0xFFFE;
 pub const HIGH_RAM_SIZE: usize = (HIGH_RAM_END - HIGH_RAM_START + 1) as usize;
 
 pub const INTERRUPT_ENABLE_REGISTER: u16 = 0xFFFF;
+
+
+// IO MAPPED MEMORY REGISTERS
+
+pub const P1_REGISTER: u16 = 0xFF00;
+pub const SB_REGISTER: u16 = 0xFF01;
+pub const SC_REGISTER: u16 = 0xFF02;
+pub const DIV_REGISTER: u16 = 0xFF04;
+pub const TIMA_REGISTER: u16 = 0xFF05;
+pub const TMA_REGISTER: u16 = 0xFF06;
+pub const TAC_REGISTER: u16 = 0xFF07;
+pub const IF_REGISTER: u16 = 0xFF0F;
+pub const NR10_REGISTER: u16 = 0xFF10;
+pub const NR11_REGISTER: u16 = 0xFF11;
+pub const NR12_REGISTER: u16 = 0xFF12;
+pub const NR13_REGISTER: u16 = 0xFF13;
+pub const NR14_REGISTER: u16 = 0xFF14;
+pub const NR21_REGISTER: u16 = 0xFF16;
+pub const NR22_REGISTER: u16 = 0xFF17;
+pub const NR23_REGISTER: u16 = 0xFF18;
+pub const NR24_REGISTER: u16 = 0xFF19;
+pub const NR30_REGISTER: u16 = 0xFF1A;
+pub const NR31_REGISTER: u16 = 0xFF1B;
+pub const NR32_REGISTER: u16 = 0xFF1C;
+pub const NR33_REGISTER: u16 = 0xFF1D;
+pub const NR34_REGISTER: u16 = 0xFF1E;
+pub const NR41_REGISTER: u16 = 0xFF20;
+pub const NR42_REGISTER: u16 = 0xFF21;
+pub const NR43_REGISTER: u16 = 0xFF22;
+pub const NR44_REGISTER: u16 = 0xFF23;
+pub const NR50_REGISTER: u16 = 0xFF24;
+pub const NR51_REGISTER: u16 = 0xFF25;
+pub const NR52_REGISTER: u16 = 0xFF26;
+
+pub const WAVE_PATTERN_RAM: u16 = 0xFF30;
+
+    // LCD REGISTERS
+
+pub const LCDC_REGISTER: u16 = 0xFF40;
+pub const LCDC_STAT_REGISTER: u16 = 0xFF41;
+pub const SCY_REGISTER: u16 = 0xFF42;
+pub const SCX_REGISTER: u16 = 0xFF43;
+pub const LCDC_Y_COORD: u16 = 0xFF44;
+pub const LCDC_Y_CMP: u16 = 0xFF45;
+pub const DMA_TRANSFER_START: u16 = 0xFF46;
+pub const BG_WINDOW_PALETTE_REGISTER: u16 = 0xFF47;
+pub const OBJ_PALETTE_0: u16 = 0xFF48;
+pub const OBJ_PALETTE_1: u16 = 0xFF49;
+pub const WINDOW_Y_POS: u16 = 0xFF4A;
+pub const WINDOW_X_POS: u16 = 0xFF4B;
+
