@@ -162,7 +162,7 @@ impl Cpu {
 
     pub fn step(&mut self, ic: &mut Interconnect) {
 
-        if !finished_bootrom && self.pc >= 0x100 {
+        if !self.finished_bootrom && self.pc >= 0x100 {
             ic.disable_internal_rom();
         }
 
