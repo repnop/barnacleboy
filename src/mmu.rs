@@ -1,7 +1,7 @@
 use std::convert::From;
 
 use constants::*;
-use rom::Rom;
+use rom::{Rom, BootRom};
 
 enum MemoryBankController {
     None,
@@ -30,7 +30,7 @@ impl From<u8> for MemoryBankController {
     }
 }
 
-struct Mmu {
+pub struct Mmu {
     boot_rom: Box<[u8]>,
     cart_rom: Box<[u8]>,
     cart_ram: Box<[u8]>,
@@ -49,7 +49,7 @@ struct Mmu {
     ram_enabled: bool,
     ram_size: usize,
     rom_size: usize,
-    read_internal_rom: bool
+    pub read_internal_rom: bool
 }
 
 impl Mmu {
@@ -212,7 +212,11 @@ impl Mmu {
     pub fn read_byte(&self, addr: u16) -> u8 {
         match addr {
             CART_ROM_BANK_00_START ... CART_ROM_BANK_00_END => {
-                self.cart_rom[(addr - CART_ROM_BANK_00_START) as usize]
+                if addr <= 0xFF && self.read_internal_rom {
+                    self.boot_rom[addr as usize]
+                } else {
+                    self.cart_rom[(addr - CART_ROM_BANK_00_START) as usize]
+                }
             },
             CART_ROM_BANK_NN_START ... CART_ROM_BANK_NN_END => {
                 match self.mem_bank_controller {
@@ -271,7 +275,16 @@ impl Mmu {
         }
     }
 
-    pub fn load_rom(&mut self, rom: Rom) {
+    pub fn read_word(&self, addr: u16) -> u16 {
+        ((self.read_byte(addr + 1) as u16) << 8) | self.read_byte(addr) as u16
+    }
+
+    pub fn write_word(&mut self, addr: u16, value: u16) {
+        self.write_byte(addr + 1, (value >> 8) as u8);
+        self.write_byte(addr, (value & 0x00FF) as u8);
+    }
+
+    pub fn load_rom(&mut self, rom: Rom, bootrom: BootRom) {
         let mut index = 0usize;
         
         for byte in rom.ivt.iter() {
@@ -291,5 +304,11 @@ impl Mmu {
             index += 1;
         }
 
+        index = 0;
+
+        for byte in bootrom.0.iter() {
+            self.boot_rom[index] = *byte;
+            index += 1;
+        }
     }
 }

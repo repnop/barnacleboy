@@ -9,7 +9,7 @@ pub const ROM_BANKING_MODE: u8 = 0x00;
 pub const RAM_BANKING_MODE: u8 = 0x01;
 
 pub const RAM_BANK_SIZE: u16 = 8 * 1024;
-pub const ROM_BANK_SIZE: u16 = 32 * 1024;
+pub const ROM_BANK_SIZE: u16 = 16 * 1024;
 
 pub const BOOT_ROM_SIZE: usize = 0x100;
 
@@ -118,3 +118,44 @@ pub const OBJ_PALETTE_1: u16 = 0xFF49;
 pub const WINDOW_Y_POS: u16 = 0xFF4A;
 pub const WINDOW_X_POS: u16 = 0xFF4B;
 
+// CPU CONSTANTS
+
+pub const FLAGS_ZERO_INDEX: u8 = 7;
+pub const FLAGS_SUB_INDEX: u8 = 6;
+pub const FLAGS_HALF_CARRY_INDEX: u8 = 5;
+pub const FLAGS_CARRY_INDEX: u8 = 4;
+
+pub const FLAG_ZERO: u8 = 1 << FLAGS_ZERO_INDEX;
+pub const FLAG_SUB: u8 = 1 << FLAGS_SUB_INDEX;
+pub const FLAG_CARRY: u8 = 1 << FLAGS_CARRY_INDEX;
+pub const FLAG_HALF_CARRY: u8 = 1 << FLAGS_HALF_CARRY_INDEX;
+
+pub const REG_A_INDEX: usize = 0b111;
+pub const REG_B_INDEX: usize = 0b000;
+pub const REG_C_INDEX: usize = 0b001;
+pub const REG_D_INDEX: usize = 0b010;
+pub const REG_E_INDEX: usize = 0b011;
+pub const REG_H_INDEX: usize = 0b100;
+pub const REG_L_INDEX: usize = 0b101;
+
+pub const CYCLES_PER_SEC: usize = 4194304;
+
+/*pub static CYCLE_TABLE: [u8; 256] = [
+    4,    12,    8,    8,    4,    4,    8,    4,    20,    8,    8,    8,    4,    4,    8,    4,
+    4,    12,    8,    8,    4,    4,    8,    4,    12,    8,    8,    8,    4,    4,    8,    4,
+    
+]*/
+pub static R: [usize; 8] = [REG_B_INDEX,
+                            REG_C_INDEX,
+                            REG_D_INDEX,
+                            REG_E_INDEX,
+                            REG_H_INDEX,
+                            REG_L_INDEX,
+                            0b110, // HL
+                            REG_A_INDEX];
+
+pub static RP: [usize; 3] = [1, 2, 3];
+
+pub static RP2: [usize; 4] = [1, 2, 3, 0];
+
+pub static CC: [u8; 4] = [FLAG_ZERO, FLAG_ZERO, FLAG_CARRY, FLAG_CARRY];

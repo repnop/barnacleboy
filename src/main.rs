@@ -66,12 +66,11 @@ fn main() {
         verify = false;
     }
 
-    let mut gameboy = Gameboy::new(dmg.to_string(), rom.to_string(), debug, verify);
+    let result = Gameboy::new(dmg.to_string(), rom.to_string(), debug, verify);
 
-    let err = gameboy.run();
-
-    match err {
-        Err(e) => println!("{}", e),
-        Ok(_) => {}
-    };
+    if let Ok(mut gameboy) = result {
+        gameboy.run();
+    } else if let Err(err) = result {
+        println!("{}", err);
+    }
 }

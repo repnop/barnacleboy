@@ -26,42 +26,46 @@ pub struct Gameboy {
 }
 
 impl Gameboy {
-    pub fn new(dmg: String, r: String, d: bool, v: bool) -> Gameboy {
-        Gameboy {
+    pub fn new(df: String, rf: String, d: bool, v: bool) -> Result<Gameboy, String> {
+        let romfile = File::open(&rf);
+        let dmgfile = File::open(&df);
+        let rom;
+        let dmg;
+
+        if let Ok(mut ok_rom) = romfile {
+            let mut buf = Vec::new();
+
+            if ok_rom.read_to_end(&mut buf).is_err() {
+                return Err("Error reading ROM file".to_string());
+            }
+
+            rom = Rom::new(&buf[..]);
+        } else {
+            return Err(format!("Could not find the specified ROM file: {}", &rf));
+        }
+
+        if let Ok(mut ok_dmg) = dmgfile {
+            let mut buf = Vec::new();
+
+            if ok_dmg.read_to_end(&mut buf).is_err() {
+                return Err("Error reading BOOTROM file".to_string());
+            }
+            dmg = BootRom::new(&buf[..]);
+        } else {
+            return Err(format!("Could not find the specified BOOTROM file: {}", &df));
+        }
+
+        Ok(Gameboy {
             cpu: Cpu::new(),
-            ic: Interconnect { },
-            dmg: dmg,
-            rom: r,
+            ic: Interconnect::new(rom, dmg),
+            dmg: df,
+            rom: rf,
             debug: d,
             verify: v,
-        }
+        })
     }
 
     pub fn run(&mut self) -> Result<(), String> {
-        let rom = File::open(&self.rom);
-        let dmg = File::open(&self.dmg);
-
-        if let Ok(mut rom) = rom {
-            let mut buf = Vec::new();
-
-            if rom.read_to_end(&mut buf).is_err() {
-                return Err("Error reading ROM file".to_string());
-            }
-           // self.ic.mem_write_buffer(0x100, buf.as_slice());
-        } else {
-            return Err(format!("Could not find the specified ROM file: {}", &self.dmg));
-        }
-
-        if let Ok(mut dmg) = dmg {
-            let mut buf = Vec::new();
-
-            if dmg.read_to_end(&mut buf).is_err() {
-                return Err("Error reading BOOTROM file".to_string());
-            }
-            //self.ic.mem_write_buffer(0x00, buf.as_slice());
-        } else {
-            return Err(format!("Could not find the specified BOOTROM file: {}", &self.dmg));
-        }
 
         let builder = glutin::WindowBuilder::new()
             .with_title(String::from("BarnacleBoy - ") + &self.rom)
