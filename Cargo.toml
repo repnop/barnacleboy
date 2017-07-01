@@ -5,6 +5,4 @@ authors = ["rep-nop <repnop@outlook.com>"]
 
 [dependencies]
 clap = "*"
-gfx = "0.14"
-glutin = "0.7"
-gfx_window_glutin = "0.14"
+minifb = "0.9.1"

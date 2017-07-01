@@ -7,14 +7,13 @@ use std::fs::File;
 use std::io::Read;
 use std::io::Write;
 use std::io::BufRead;
+use std::thread;
+use std::time::Duration;
 
-use glutin;
-use gfx_window_glutin;
-use gfx;
-use gfx::Device;
+use minifb::{Key, WindowOptions, Window, Scale};
 
-pub type ColorFormat = gfx::format::Rgba8;
-pub type DepthFormat = gfx::format::DepthStencil;
+const WIDTH: usize = 160;
+const HEIGHT: usize = 144;
 
 pub struct Gameboy {
     cpu: Cpu,
@@ -67,50 +66,70 @@ impl Gameboy {
 
     pub fn run(&mut self) -> Result<(), String> {
 
-        let builder = glutin::WindowBuilder::new()
-            .with_title(String::from("BarnacleBoy - ") + &self.rom)
-            .with_dimensions(160, 144)
-            .with_vsync();
+        let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
 
-        let (window, mut device, mut factory, main_color, mut main_depth) =
-            gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder);
+        let mut window = Window::new("Test - ESC to exit",
+                                    WIDTH,
+                                    HEIGHT,
+                                    WindowOptions {
+                                        scale: Scale::X2, 
+                                    .. WindowOptions::default() }).unwrap_or_else(|e| {
+            panic!("{}", e);
+        });
 
-        'run: loop {
-            /*print!("\n>");
-            std::io::stdout().flush();
-            let stdin = std::io::stdin();
-            let numtimes = stdin.lock().lines().next().unwrap().unwrap();
-            let numtimes = numtimes.parse::<u32>().unwrap_or(1);*/
-            /*let mut result = Ok(());
+        const COLORS: [u32; 4] = [0x00FFFFFF, 0x00606060, 0x00C0C0C0, 0x00000000];
+        let mut clrs: [u32; 4] = [0x00FFFFFF, 0x00606060, 0x00C0C0C0, 0x00000000];
+        while window.is_open() && !window.is_key_down(Key::Escape) {
+            'lp: for i in 0..18 {
+                    for k in 0..8 {
+                        for c in 0..20 {
+                            let (scy, scx) = (self.ic.mem_read_byte(0xFF42) as u16, self.ic.mem_read_byte(0xFF43) as u16);
+                            let mapindex = self.ic.mem_read_byte(0x9800 + (i * 20) + scy + (c * 16) + scx + k * 2);
+                            let tile = [self.ic.mem_read_byte(0x8000 + mapindex as u16), self.ic.mem_read_byte(0x8001 + mapindex as u16)];
+                            buffer[(i * 1280 + c * 8 + k * 160 + 0) as usize] = clrs[(((tile[1] & 0x80) >> 6) | (tile[0] & 0x80) >> 7) as usize];
+                            buffer[(i * 1280 + c * 8 + k * 160 + 1) as usize] = clrs[(((tile[1] & 0x40) >> 5) | (tile[0] & 0x40) >> 6) as usize];
+                            buffer[(i * 1280 + c * 8 + k * 160 + 2) as usize] = clrs[(((tile[1] & 0x20) >> 4) | (tile[0] & 0x20) >> 5) as usize];
+                            buffer[(i * 1280 + c * 8 + k * 160 + 3) as usize] = clrs[(((tile[1] & 0x10) >> 3) | (tile[0] & 0x10) >> 4) as usize];
+                            buffer[(i * 1280 + c * 8 + k * 160 + 4) as usize] = clrs[(((tile[1] & 0x08) >> 2) | (tile[0] & 0x08) >> 3) as usize];
+                            buffer[(i * 1280 + c * 8 + k * 160 + 5) as usize] = clrs[(((tile[1] & 0x04) >> 1) | (tile[0] & 0x04) >> 2) as usize];
+                            buffer[(i * 1280 + c * 8 + k * 160 + 6) as usize] = clrs[(((tile[1] & 0x02) >> 0) | (tile[0] & 0x02) >> 1) as usize];
+                            buffer[(i * 1280 + c * 8 + k * 160 + 7) as usize] = clrs[(((tile[1] & 0x01) << 1) | (tile[0] & 0x01) << 0) as usize];
 
-            //for _ in 0..numtimes {
-            //result = self.cpu.step(&mut self.ic);
-            //self.screen.update(&mut self.ic);
-            //}
+                            if !window.is_open() {
+                                break 'lp;
+                            }
+                        }
 
-            if result.is_err() {
-                match result.err() {
-                    Some(e) => {
-                        /*match e {
-                            (CpuError::GPError, ins) => return Err(format!("GPError @ {}: {}", self.cpu.program_counter, ins.disassemble())),
-                            (CpuError::UnknownOpcode, ins) => return Err(format!("Unknown Opcode: {}", ins.opcode())),
-                            _ => { },
-                        };*/
+                        self.cpu.step(&mut self.ic);
+                        //thread::sleep(Duration::from_millis(150));
+
+                        let bgp = self.ic.mem_read_byte(0xFF47);
+
+                        clrs[0] = COLORS[(bgp & 0x3) as usize];
+                        clrs[1] = COLORS[((bgp >> 2) & 0x3) as usize];
+                        clrs[1] = COLORS[((bgp >> 4) & 0x3) as usize];
+                        clrs[1] = COLORS[((bgp >> 6) & 0x3) as usize];
+
+                        
                     }
-                    None => {}
-                };
-            }*/
-
-            for event in window.poll_events() {
-                match event {
-                    glutin::Event::Closed => break 'run,
-                    _ => {}
                 }
-            }
+                let mut ly = self.ic.mem_read_byte(0xFF44);
+                if ly == 144 && self.cpu.interrupts_enabled {
+                    let pc = self.cpu.pc;
+                    self.cpu.push16(&mut self.ic, pc);
+                    self.cpu.pc = 0x40;
+                    println!("!!!VBLANK!!!");
+                }
 
-            window.swap_buffers().unwrap();
-            device.cleanup();
-        }
+                if ly + 1 > 153 {
+                    ly = 0;
+                } else {
+                    ly += 1;
+                }
+
+                self.ic.mem_write_byte(0xFF44, ly);
+                window.update_with_buffer(&buffer);
+            }
 
         return Ok(());
     }

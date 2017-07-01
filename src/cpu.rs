@@ -135,9 +135,9 @@ macro_rules! read_word {
 
 pub struct Cpu {
     regs: Registers,
-    pc: u16,
+    pub pc: u16,
     sp: u16,
-    interrupts_enabled: bool,
+    pub interrupts_enabled: bool,
     finished_bootrom: bool
 }
 
@@ -147,7 +147,7 @@ impl Cpu {
             regs: Registers::new(),
             pc: 0,
             sp: 0,
-            interrupts_enabled: true,
+            interrupts_enabled: false,
             finished_bootrom: false
         }
     }
@@ -167,6 +167,7 @@ impl Cpu {
         }
 
         let opcode = read_byte!(self, ic);
+        println!("Executing Opcode: {}", self.disassemble(ic, opcode));
         self.execute(ic, opcode);
     }
 
@@ -303,6 +304,247 @@ impl Cpu {
             // shouldn't get here, and if we do, something has gone very wrong
             _ => { },
         };
+    }
+
+    fn disassemble(&mut self, ic: &mut Interconnect, opcode: u8) -> String {
+        static R_STR: [&'static str; 8] = ["b", "c", "d", "e", "h", "l", "(hl)", "a"];
+
+        static RP_STR: [&'static str; 4] = ["bc", "de", "hl", "sp"];
+
+        static RP2_STR: [&'static str; 4] = ["bc", "de", "hl", "af"];
+
+        static CC_STR: [&'static str; 4] = [" nz", " z", " nc", " c"];
+
+        static ALU_STR: [&'static str; 8] = 
+            ["add a,", "adc a,", "sub", "sbc a,", "and", "xor", "or", "cp"];
+
+        static ROT_STR: [&'static str; 8] = 
+            ["rlc", "rrc", "rl", "rr", "sla", "sra", "swap", "srl"];
+
+        let (x, y, z, p, q) = extract_x_y_z_p_q(opcode);
+        let bytes = [opcode, ic.mem_read_byte(self.pc), ic.mem_read_byte(self.pc + 1)];
+
+        match (x, y, z, p, q) {
+            // x = 0
+            // match on y when z = 0
+            (0, 0, 0, _, _) => String::from("nop"),//nop,
+
+            (0, 1, 0, _, _) => format!("ld (0x{:x}), sp", ((bytes[2] as u16) << 8) | (0x00FF & (bytes[1] as u16))),
+
+            (0, 2, 0, _, _) => String::from("stop"),
+
+            (0, 3, 0, _, _) => {
+                let y = extract_x_y_z_p_q(bytes[0]).1 as usize;
+                let mut disas = String::from("jr");
+                
+                if y >= 4 && y <= 7 {
+                    disas.push_str(CC_STR[y-4]);
+                }
+
+                disas.push_str(&format!(" {}", bytes[1] as i16));
+                
+                disas
+            },
+
+            (0, 4...7, 0, _, _) => {
+                let y = extract_x_y_z_p_q(bytes[0]).1 as usize;
+                let mut disas = String::from("jr");
+                
+                if y >= 4 && y <= 7 {
+                    disas.push_str(CC_STR[y-4]);
+                }
+
+                disas.push_str(&format!(" {}", bytes[1] as i16));
+                
+                disas
+            },
+
+            // match on q when z = 1
+            (0, _, 1, _, 0) => {
+                let p = extract_x_y_z_p_q(bytes[0]).3 as usize;
+                format!("ld {}, 0x{:x}", RP_STR[p], (((bytes[2] as u16) << 8) | (0x00FF & (bytes[1] as u16))))
+            },
+
+            (0, _, 1, _, 1) => {
+                let p = extract_x_y_z_p_q(bytes[0]).3 as usize;
+                format!("add hl, {}", RP_STR[p])
+            },
+
+            // match on p when z = 2, q = 0
+            (0, _, 2, 0, 0) => String::from("ld (bc), a"),
+
+            (0, _, 2, 1, 0) => String::from("ld (de), a"),
+
+            (0, _, 2, 2, 0) => String::from("ld (hl+), a"),
+
+            (0, _, 2, 3, 0) => String::from("ld (hl-), a"),
+
+            // match on p when z = 2, q = 1
+            (0, _, 2, 0, 1) => String::from("ld a, (bc)"),
+
+            (0, _, 2, 1, 1) => String::from("ld a, (de)"),
+
+            (0, _, 2, 2, 1) => String::from("ld a, (hl+)"),
+
+            (0, _, 2, 3, 1) => String::from("ld a, (hl-)"),
+
+            // match on q when z = 3
+            (0, _, 3, _, 0) => {
+                let p = extract_x_y_z_p_q(bytes[0]).3 as usize;
+                format!("inc {}", RP_STR[p])
+            },
+            (0, _, 3, _, 1) => {
+                let p = extract_x_y_z_p_q(bytes[0]).3 as usize;
+                format!("dec {}", RP_STR[p])
+            },
+
+            // match on z = 4 ... 6
+            (0, _, 4, _, _) => {
+                let y = extract_x_y_z_p_q(bytes[0]).1 as usize;
+                format!("inc {}", R_STR[y])
+            },
+
+            (0, _, 5, _, _) => {
+                let y = extract_x_y_z_p_q(bytes[0]).1 as usize;
+                format!("dec {}", R_STR[y])
+            },
+
+            (0, _, 6, _, _) => {
+                let y = extract_x_y_z_p_q(bytes[0]).1 as usize;
+                format!("ld {}, 0x{:x}", R_STR[y], bytes[1])
+            },
+
+            // match on y when z = 7
+            (0, 0, 7, _, _) => String::from("rlca"),
+
+            (0, 1, 7, _, _) => String::from("rrca"),
+
+            (0, 2, 7, _, _) => String::from("rla"),
+
+            (0, 3, 7, _, _) => String::from("rra"),
+
+            (0, 4, 7, _, _) => String::from("daa"),
+
+            (0, 5, 7, _, _) => String::from("cpl"),
+
+            (0, 6, 7, _, _) => String::from("scf"),
+
+            (0, 7, 7, _, _) => String::from("ccf"),
+
+            // x = 1
+            // match on z = 0 ... 6
+            (1, _, 0...5, _, _) => {
+                let (_, y, z, _, _) = extract_x_y_z_p_q(bytes[0]);
+                format!("ld {}, {}", R_STR[y as usize], R_STR[z as usize])
+            },
+
+            (1, _, 6, _, _) => String::from("halt"),
+
+            (1, _, 7, _, _) => {
+                let (_, y, z, _, _) = extract_x_y_z_p_q(bytes[0]);
+                format!("ld {}, {}", R_STR[y as usize], R_STR[z as usize])
+            },
+
+            // x = 2
+            (2, _, _, _, _) => {
+                let (_, y, z, _, _) = extract_x_y_z_p_q(bytes[0]);
+                format!("{} {}", ALU_STR[y as usize], R_STR[z as usize])
+            },
+
+            // x = 3
+            // match on y when z = 0
+            (3, 0...3, 0, _, _) => {
+                let y = extract_x_y_z_p_q(bytes[0]).1 as usize;
+                format!("ret {}", CC_STR[y])
+            },
+
+            (3, 4, 0, _, _) => format!("ld 0xff00+0x{:x}, a", bytes[1]),
+
+            (3, 5, 0, _, _) => format!("add sp, {}", bytes[1] as i8),
+
+            (3, 6, 0, _, _) => format!("ld a, 0xff00+0x{:x}", bytes[1]),
+
+            (3, 7, 0, _, _) => format!("ld hl, sp+{}", bytes[1] as i8),
+
+            // match on q = 0, z = 1
+            (3, _, 1, _, 0) => {
+                let p = extract_x_y_z_p_q(bytes[0]).3 as usize;
+                format!("pop {}", RP2_STR[p])
+            },
+
+            // match on p when q = 1, z = 1
+            (3, _, 1, 0, 1) => String::from("ret"),
+            (3, _, 1, 1, 1) => String::from("reti"),
+            (3, _, 1, 2, 1) => String::from("jp (hl)"),
+            (3, _, 1, 3, 1) => String::from("ld sp, hl"),
+
+            // match on y when z = 2
+            (3, 0...3, 2, _, _) => {
+                let y = extract_x_y_z_p_q(bytes[0]).1 as usize;
+                format!("jp {} {}", CC_STR[y], ((bytes[2] as u16) << 8) | (0x00FF & (bytes[1] as u16)))
+            },
+
+            (3, 4, 2, _, _) => String::from("ld (0xff00+c), a"),
+
+            (3, 5, 2, _, _) => format!("ld ({:x}), a", ((bytes[2] as u16) << 8) | (0x00FF & (bytes[1] as u16))),
+            (3, 6, 2, _, _) => String::from("ld a, (0xff00+c)"),
+            (3, 7, 2, _, _) => format!("ld a, ({:x})", ((bytes[2] as u16) << 8) | (0x00FF & (bytes[1] as u16))),
+
+            // match on y when z = 3
+            (3, 0, 3, _, _) => format!("jp {:x}", ((bytes[2] as u16) << 8) | (0x00FF & (bytes[1] as u16))),
+
+            (3, 1, 3, _, _) => {
+                let (x, y, z, _, _) = extract_x_y_z_p_q(bytes[1]);
+
+                match x {
+                    0 => {
+                        format!("{} {}", ROT_STR[y as usize], R_STR[z as usize])
+                    },
+                    1 => {
+                        format!("bit {}, {}", y, R_STR[z as usize])
+                    },
+                    2 => {
+                        format!("res {}, {}", y, R_STR[z as usize])
+                    },
+                    3 => {
+                        format!("set {}, {}", y, R_STR[z as usize])
+                    },
+                    _ => String::from("Unknown prefixed op")
+                }
+            },
+            (3, 2...5, 3, _, _) => String::from("nop"),
+
+            (3, 6, 3, _, _) => String::from("di"),
+
+            (3, 7, 3, _, _) => String::from("ei"),
+
+            // match on y when z = 4
+            (3, 0...3, 4, _, _) => {
+                let y = extract_x_y_z_p_q(bytes[0]).1 as usize;
+                format!("call {} 0x{:x}", CC_STR[y], ((bytes[2] as u16) << 8) | (0x00FF & (bytes[1] as u16)))
+            },
+
+            // match on q when z = 5
+            (3, _, 5, _, 0) => {
+                let p = extract_x_y_z_p_q(bytes[0]).3 as usize;
+                format!("push {}", RP2_STR[p])
+            },
+            (3, _, 5, 0, 1) => format!("call 0x{:x}", ((bytes[2] as u16) << 8) | (0x00FF & (bytes[1] as u16))),
+
+            // z = 6, 7
+            (3, _, 6, _, _) => {
+                let y = extract_x_y_z_p_q(bytes[0]).1 as usize;
+                format!("{} {:x}", ALU_STR[y], bytes[1])
+            },
+
+            (3, _, 7, _, _) => {
+                let y = extract_x_y_z_p_q(bytes[0]).1;
+                format!("rst 0x{:x}", y * 8)
+            },
+
+            // shouldn't get here, and if we do, something has gone very wrong
+            _ => String::from("nop"),
+        }
     }
 
     fn ld_nn_sp(&mut self, ic: &mut Interconnect, op: u8) {
@@ -1067,6 +1309,8 @@ impl Cpu {
     }
 
     fn prefixed(&mut self, ic: &mut Interconnect, op: u8) {
+        let op = read_byte!(self, ic);
+
         let (x, y, z, _, _) = extract_x_y_z_p_q(op);
         match x {
             0 => {

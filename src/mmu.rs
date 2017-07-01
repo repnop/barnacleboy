@@ -81,7 +81,7 @@ impl Mmu {
         match addr {
             CART_ROM_BANK_00_START ... CART_ROM_BANK_00_END => {
                 if self.read_internal_rom {
-                    println!("Tried writing to internal boot rom");
+                    //println!("Tried writing to internal boot rom");
                 } else {
                     if addr <= 0x1FFF {
                         match self.mem_bank_controller {
@@ -195,8 +195,8 @@ impl Mmu {
             SPRITE_ATTRIBUTE_TABLE_START ... SPRITE_ATTRIBUTE_TABLE_END =>
                 self.sprite_attribute_table[(addr - SPRITE_ATTRIBUTE_TABLE_START) as usize] = value,
 
-            UNUSED_RAM_START ... UNUSED_RAM_END =>
-                println!("Tried writing to unusable RAM"),
+            UNUSED_RAM_START ... UNUSED_RAM_END =>{},
+                //println!("Tried writing to unusable RAM"),
 
             IO_RAM_START ... IO_RAM_END => {
                 // TODO: Check if any IO registers are cleared by writing
