@@ -12,17 +12,19 @@ impl Interconnect {
             (32 * 1024) << (rom.header.rom_size as usize)
         } else {
             match rom.header.rom_size {
-                0x52 | _ => (ROM_BANK_SIZE as usize) * 72,
+                0x52 => (ROM_BANK_SIZE as usize) * 72,
                 0x53 => (ROM_BANK_SIZE as usize) * 80,
-                0x54 => (ROM_BANK_SIZE as usize) * 96
+                0x54 => (ROM_BANK_SIZE as usize) * 96,
+                _ => (ROM_BANK_SIZE as usize) * 72
             }
         };
 
         let ramsize: usize = match rom.header.ram_size {
-            0x00 | _ => 0,
+            0x00 => 0,
             0x01 => 2 * 1024,
             0x02 => 8 * 1024,
-            0x03 => 4 * 8 * 1024
+            0x03 => 4 * 8 * 1024,
+            _ => 0
         };
         
         let mut ic = Interconnect {

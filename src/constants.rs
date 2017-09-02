@@ -2,6 +2,9 @@
 
 // All constants are inclusive for START ... END
 
+pub const SCREEN_WIDTH: usize = 160;
+pub const SCREEN_HEIGHT: usize = 144;
+
 pub const MEMORY_SIZE: u16 = 0xFFFF;
 pub const MAX_ROM_BANKS: usize = 32;
 
@@ -130,6 +133,12 @@ pub const FLAG_SUB: u8 = 1 << FLAGS_SUB_INDEX;
 pub const FLAG_CARRY: u8 = 1 << FLAGS_CARRY_INDEX;
 pub const FLAG_HALF_CARRY: u8 = 1 << FLAGS_HALF_CARRY_INDEX;
 
+pub const INTERRUPT_FLAG_VBLANK: u8 = 1;
+pub const INTERRUPT_FLAG_LCD_STAT: u8 = 1 << 1;
+pub const INTERRUPT_FLAG_TIMER: u8 = 1 << 2;
+pub const INTERRUPT_FLAG_SERIAL: u8 = 1 << 3;
+pub const INTERRUPT_FLAG_JOYPAD: u8 = 1 << 4;
+
 pub const REG_A_INDEX: usize = 0b111;
 pub const REG_B_INDEX: usize = 0b000;
 pub const REG_C_INDEX: usize = 0b001;
@@ -140,11 +149,27 @@ pub const REG_L_INDEX: usize = 0b101;
 
 pub const CYCLES_PER_SEC: usize = 4194304;
 
-/*pub static CYCLE_TABLE: [u8; 256] = [
-    4,    12,    8,    8,    4,    4,    8,    4,    20,    8,    8,    8,    4,    4,    8,    4,
-    4,    12,    8,    8,    4,    4,    8,    4,    12,    8,    8,    8,    4,    4,    8,    4,
-    
-]*/
+// TODO: 10s are and average of a 12/8 clock amount for JRs
+//  Find a way to differentiate between them
+//  Last 4 rows have a lot of averages also
+pub static CYCLE_TABLE: [u8; 256] = [
+     4,   12,    8,    8,    4,    4,    8,    4,    20,    8,    8,    8,    4,    4,    8,    4,
+     4,   12,    8,    8,    4,    4,    8,    4,    12,    8,    8,    8,    4,    4,    8,    4,
+    10,   12,    8,    8,    4,    4,    8,    4,    10,    8,    8,    8,    4,    4,    8,    4,
+    10,   12,    8,    8,   12,   12,   12,    4,    10,    8,    8,    8,    4,    4,    8,    4,
+     4,    4,    4,    4,    4,    4,    8,    4,     4,    4,    4,    4,    4,    4,    8,    4,
+     4,    4,    4,    4,    4,    4,    8,    4,     4,    4,    4,    4,    4,    4,    8,    4,
+     4,    4,    4,    4,    4,    4,    8,    4,     4,    4,    4,    4,    4,    4,    8,    4,
+     8,    8,    8,    8,    8,    8,    4,    8,     4,    4,    4,    4,    4,    4,    8,    4,
+     4,    4,    4,    4,    4,    4,    8,    4,     4,    4,    4,    4,    4,    4,    8,    4,
+     4,    4,    4,    4,    4,    4,    8,    4,     4,    4,    4,    4,    4,    4,    8,    4,
+     4,    4,    4,    4,    4,    4,    8,    4,     4,    4,    4,    4,    4,    4,    8,    4,
+     4,    4,    4,    4,    4,    4,    8,    4,     4,    4,    4,    4,    4,    4,    8,    4,
+    14,   12,   14,   16,   18,   16,    8,   16,    14,   16,   14,    4,   18,   24,    8,   16,
+    14,   12,   14,    4,   18,   16,    8,   16,    14,   16,   14,    4,   18,    4,    8,   16,
+    12,   12,    8,    4,    4,   16,    8,   16,    16,    4,   16,    4,    4,    4,    8,   16,
+    12,   12,    8,    4,    4,   16,    8,   16,    12,    8,   16,    4,    4,    4,    8,   16];
+
 pub static R: [usize; 8] = [REG_B_INDEX,
                             REG_C_INDEX,
                             REG_D_INDEX,
@@ -154,8 +179,8 @@ pub static R: [usize; 8] = [REG_B_INDEX,
                             0b110, // HL
                             REG_A_INDEX];
 
-pub static RP: [usize; 3] = [1, 2, 3];
+pub static RP: [usize; 3] = [0, 1, 2];
 
-pub static RP2: [usize; 4] = [1, 2, 3, 0];
+pub static RP2: [usize; 4] = [0, 1, 2, 3];
 
 pub static CC: [u8; 4] = [FLAG_ZERO, FLAG_ZERO, FLAG_CARRY, FLAG_CARRY];

@@ -1,4 +1,6 @@
 use std::convert::From;
+use std;
+use std::io::Write;
 
 use constants::*;
 use rom::{Rom, BootRom};
@@ -195,12 +197,17 @@ impl Mmu {
             SPRITE_ATTRIBUTE_TABLE_START ... SPRITE_ATTRIBUTE_TABLE_END =>
                 self.sprite_attribute_table[(addr - SPRITE_ATTRIBUTE_TABLE_START) as usize] = value,
 
-            UNUSED_RAM_START ... UNUSED_RAM_END =>{},
+            UNUSED_RAM_START ... UNUSED_RAM_END =>
+                self.unused_ram[(addr - UNUSED_RAM_START) as usize] = value,
                 //println!("Tried writing to unusable RAM"),
 
             IO_RAM_START ... IO_RAM_END => {
                 // TODO: Check if any IO registers are cleared by writing
                 self.io_port_ram[(addr - IO_RAM_START) as usize] = value;
+
+                if addr == 0xFF01 {
+                    println!("Write to serial port: {:X} (char: {})", value, value as char);
+                }
             }
 
             INTERRUPT_ENABLE_REGISTER => self.interrupt_register = value,
@@ -260,10 +267,8 @@ impl Mmu {
             SPRITE_ATTRIBUTE_TABLE_START ... SPRITE_ATTRIBUTE_TABLE_END =>
                 self.sprite_attribute_table[(addr - SPRITE_ATTRIBUTE_TABLE_START) as usize],
 
-            UNUSED_RAM_START ... UNUSED_RAM_END => {
-                println!("Tried writing to unusable RAM");
-                0
-            },
+            UNUSED_RAM_START ... UNUSED_RAM_END => 
+                self.unused_ram[(addr - UNUSED_RAM_START) as usize],
 
             IO_RAM_START ... IO_RAM_END => {
                 self.io_port_ram[(addr - IO_RAM_START) as usize]
@@ -276,7 +281,7 @@ impl Mmu {
     }
 
     pub fn read_word(&self, addr: u16) -> u16 {
-        ((self.read_byte(addr + 1) as u16) << 8) | self.read_byte(addr) as u16
+        ((self.read_byte(addr + 1) as u16) << 8) | ( 0x00FF & self.read_byte(addr) as u16)
     }
 
     pub fn write_word(&mut self, addr: u16, value: u16) {

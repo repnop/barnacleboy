@@ -4,6 +4,8 @@ extern crate minifb;
 mod cpu;
 mod rom;
 mod mmu;
+mod gpu;
+mod tests;
 mod gameboy;
 mod constants;
 mod interconnect;
@@ -31,7 +33,7 @@ fn main() {
                  .help("Specifies whether to run in debug mode or not")
                  .takes_value(false))
         .arg(Arg::with_name("noverify")
-                 .short("nv")
+                 .short("n")
                  .help("Specifies to not checksum the ROM")
                  .takes_value(false))
         .get_matches();

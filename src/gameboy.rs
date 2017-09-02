@@ -1,6 +1,8 @@
 use cpu::{Cpu};
 use interconnect::Interconnect;
 use rom::{Rom, BootRom};
+use gpu::Gpu;
+use constants::*;
 
 use std;
 use std::fs::File;
@@ -10,13 +12,11 @@ use std::io::BufRead;
 use std::thread;
 use std::time::Duration;
 
-use minifb::{Key, WindowOptions, Window, Scale};
-
-const WIDTH: usize = 160;
-const HEIGHT: usize = 144;
+use minifb::{Key, WindowOptions, Window, Scale, KeyRepeat};
 
 pub struct Gameboy {
     cpu: Cpu,
+    gpu: Gpu,
     ic: Interconnect,
     dmg: String,
     rom: String,
@@ -49,13 +49,19 @@ impl Gameboy {
             if ok_dmg.read_to_end(&mut buf).is_err() {
                 return Err("Error reading BOOTROM file".to_string());
             }
-            dmg = BootRom::new(&buf[..]);
+
+            if v {
+                dmg = BootRom::new(&buf[..]);
+            } else {
+                dmg = BootRom::new(&[0; 0x100]);
+            }
         } else {
             return Err(format!("Could not find the specified BOOTROM file: {}", &df));
         }
 
         Ok(Gameboy {
             cpu: Cpu::new(),
+            gpu: Gpu::new(),
             ic: Interconnect::new(rom, dmg),
             dmg: df,
             rom: rf,
@@ -65,71 +71,117 @@ impl Gameboy {
     }
 
     pub fn run(&mut self) -> Result<(), String> {
-
-        let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
-
+        let mut buffer = vec![0xFFFFFFFF; SCREEN_WIDTH * SCREEN_HEIGHT];
         let mut window = Window::new("Test - ESC to exit",
-                                    WIDTH,
-                                    HEIGHT,
+                                    SCREEN_WIDTH,
+                                    SCREEN_HEIGHT,
                                     WindowOptions {
                                         scale: Scale::X2, 
                                     .. WindowOptions::default() }).unwrap_or_else(|e| {
             panic!("{}", e);
         });
 
-        const COLORS: [u32; 4] = [0x00FFFFFF, 0x00606060, 0x00C0C0C0, 0x00000000];
-        let mut clrs: [u32; 4] = [0x00FFFFFF, 0x00606060, 0x00C0C0C0, 0x00000000];
+        if !self.verify {
+            println!("No verify. Skipping bootrom");
+            self.cpu.regs.a = 0x01;
+            self.cpu.regs.f = 0xB0;
+            self.cpu.regs.b = 0x00;
+            self.cpu.regs.c = 0x13;
+            self.cpu.regs.d = 0x00;
+            self.cpu.regs.e = 0xD8;
+            self.cpu.regs.h = 0x01;
+            self.cpu.regs.l = 0x4D;
+            self.cpu.sp = 0xFFFE;
+
+            self.ic.mem_write_byte(0xFF05, 0x00);
+            self.ic.mem_write_byte(0xFF06, 0x00);
+            self.ic.mem_write_byte(0xFF07, 0x00);
+            self.ic.mem_write_byte(0xFF10, 0x80);
+            self.ic.mem_write_byte(0xFF11, 0xBF);
+            self.ic.mem_write_byte(0xFF12, 0xF3);
+            self.ic.mem_write_byte(0xFF14, 0xBF);
+            self.ic.mem_write_byte(0xFF16, 0x3F);
+            self.ic.mem_write_byte(0xFF17, 0x00);
+            self.ic.mem_write_byte(0xFF19, 0xBF);
+            self.ic.mem_write_byte(0xFF1A, 0x7F);
+            self.ic.mem_write_byte(0xFF1B, 0xFF);
+            self.ic.mem_write_byte(0xFF1C, 0x9F);
+            self.ic.mem_write_byte(0xFF1E, 0xBF);
+            self.ic.mem_write_byte(0xFF20, 0xFF);
+            self.ic.mem_write_byte(0xFF21, 0x00);
+            self.ic.mem_write_byte(0xFF22, 0x00);
+            self.ic.mem_write_byte(0xFF23, 0xBF);
+            self.ic.mem_write_byte(0xFF24, 0x77);
+            self.ic.mem_write_byte(0xFF25, 0xF3);
+            self.ic.mem_write_byte(0xFF26, 0xF1);
+            self.ic.mem_write_byte(0xFF40, 0x91);
+            self.ic.mem_write_byte(0xFF42, 0x00);
+            self.ic.mem_write_byte(0xFF43, 0x00);
+            self.ic.mem_write_byte(0xFF45, 0x00);
+            self.ic.mem_write_byte(0xFF47, 0xFC);
+            self.ic.mem_write_byte(0xFF48, 0xFF);
+            self.ic.mem_write_byte(0xFF49, 0xFF);
+            self.ic.mem_write_byte(0xFF4A, 0x00);
+            self.ic.mem_write_byte(0xFF4B, 0x00);
+            self.ic.mem_write_byte(0xFFFF, 0x00);
+
+            self.cpu.finished_bootrom = true;
+            self.ic.disable_internal_rom();
+            self.cpu.pc = 0x100;
+            self.cpu.interrupts_enabled = true;
+        }
+
         while window.is_open() && !window.is_key_down(Key::Escape) {
-            'lp: for i in 0..18 {
-                    for k in 0..8 {
-                        for c in 0..20 {
-                            let (scy, scx) = (self.ic.mem_read_byte(0xFF42) as u16, self.ic.mem_read_byte(0xFF43) as u16);
-                            let mapindex = self.ic.mem_read_byte(0x9800 + (i * 20) + scy + (c * 16) + scx + k * 2);
-                            let tile = [self.ic.mem_read_byte(0x8000 + mapindex as u16), self.ic.mem_read_byte(0x8001 + mapindex as u16)];
-                            buffer[(i * 1280 + c * 8 + k * 160 + 0) as usize] = clrs[(((tile[1] & 0x80) >> 6) | (tile[0] & 0x80) >> 7) as usize];
-                            buffer[(i * 1280 + c * 8 + k * 160 + 1) as usize] = clrs[(((tile[1] & 0x40) >> 5) | (tile[0] & 0x40) >> 6) as usize];
-                            buffer[(i * 1280 + c * 8 + k * 160 + 2) as usize] = clrs[(((tile[1] & 0x20) >> 4) | (tile[0] & 0x20) >> 5) as usize];
-                            buffer[(i * 1280 + c * 8 + k * 160 + 3) as usize] = clrs[(((tile[1] & 0x10) >> 3) | (tile[0] & 0x10) >> 4) as usize];
-                            buffer[(i * 1280 + c * 8 + k * 160 + 4) as usize] = clrs[(((tile[1] & 0x08) >> 2) | (tile[0] & 0x08) >> 3) as usize];
-                            buffer[(i * 1280 + c * 8 + k * 160 + 5) as usize] = clrs[(((tile[1] & 0x04) >> 1) | (tile[0] & 0x04) >> 2) as usize];
-                            buffer[(i * 1280 + c * 8 + k * 160 + 6) as usize] = clrs[(((tile[1] & 0x02) >> 0) | (tile[0] & 0x02) >> 1) as usize];
-                            buffer[(i * 1280 + c * 8 + k * 160 + 7) as usize] = clrs[(((tile[1] & 0x01) << 1) | (tile[0] & 0x01) << 0) as usize];
+            let mut clrs: [u32; 4] = [0x00FFFFFF, 0x00606060, 0x00C0C0C0, 0x00000000];
 
-                            if !window.is_open() {
-                                break 'lp;
-                            }
-                        }
+            let mode = self.ic.mem_read_byte(0xFF41) & 0x3;
 
-                        self.cpu.step(&mut self.ic);
-                        //thread::sleep(Duration::from_millis(150));
+            let mut cycles_to_execute: i16 = match mode {
+                0 => 204,
+                1 => 4560,
+                2 => 80,
+                3 => 172,
+                _ => 204,
+            };
+            
+            if self.debug {
+                println!("Processing {} cycles", cycles_to_execute);
+            }
 
-                        let bgp = self.ic.mem_read_byte(0xFF47);
-
-                        clrs[0] = COLORS[(bgp & 0x3) as usize];
-                        clrs[1] = COLORS[((bgp >> 2) & 0x3) as usize];
-                        clrs[1] = COLORS[((bgp >> 4) & 0x3) as usize];
-                        clrs[1] = COLORS[((bgp >> 6) & 0x3) as usize];
-
-                        
+            while cycles_to_execute > 0 {
+                if !self.cpu.stopped {
+                    if !self.cpu.halted {
+                        cycles_to_execute -= self.cpu.step(&mut self.ic, self.debug) as i16;
                     }
                 }
-                let mut ly = self.ic.mem_read_byte(0xFF44);
-                if ly == 144 && self.cpu.interrupts_enabled {
-                    let pc = self.cpu.pc;
-                    self.cpu.push16(&mut self.ic, pc);
-                    self.cpu.pc = 0x40;
-                    println!("!!!VBLANK!!!");
+
+                let mut joypadreg = self.ic.mem_read_byte(0xFF00);
+                
+                // Direction buttons
+                if window.is_key_pressed(Key::Up, KeyRepeat::Yes) {
+                    joypadreg &= !((1 << 4) | (1 << 2));
+                } else if window.is_key_pressed(Key::Down, KeyRepeat::Yes) {
+                    joypadreg &= !((1 << 4) | (1 << 3));
+                } else if window.is_key_pressed(Key::Left, KeyRepeat::Yes) {
+                    joypadreg &= !((1 << 4) | (1 << 1));
+                } else if window.is_key_pressed(Key::Right, KeyRepeat::Yes) {
+                    joypadreg &= !((1 << 4) | (1 << 0));
                 }
 
-                if ly + 1 > 153 {
-                    ly = 0;
-                } else {
-                    ly += 1;
+                if window.is_key_pressed(Key::Z, KeyRepeat::No) {
+                    joypadreg &= !((1 << 5) | (1 << 3));
+                } else if window.is_key_pressed(Key::X, KeyRepeat::No) {
+                    joypadreg &= !((1 << 5) | (1 << 3));
                 }
 
-                self.ic.mem_write_byte(0xFF44, ly);
-                window.update_with_buffer(&buffer);
+                self.ic.mem_write_byte(0xFF00, joypadreg);
             }
+
+            //self.cpu.check_and_handle_interrupts(&mut self.ic, self.debug);
+            self.gpu.update(&mut self.ic);
+            
+            window.update_with_buffer(&self.gpu.screen_buffer);
+        }
 
         return Ok(());
     }
