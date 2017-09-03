@@ -3,6 +3,7 @@ use interconnect::Interconnect;
 use rom::{Rom, BootRom};
 use gpu::Gpu;
 use constants::*;
+use debugger::Debugger;
 
 use std;
 use std::fs::File;
@@ -18,6 +19,7 @@ pub struct Gameboy {
     cpu: Cpu,
     gpu: Gpu,
     ic: Interconnect,
+    debugger: Debugger,
     dmg: String,
     rom: String,
     debug: bool,
@@ -63,6 +65,7 @@ impl Gameboy {
             cpu: Cpu::new(),
             gpu: Gpu::new(),
             ic: Interconnect::new(rom, dmg),
+            debugger: Debugger::new(),
             dmg: df,
             rom: rf,
             debug: d,
@@ -151,7 +154,13 @@ impl Gameboy {
             while cycles_to_execute > 0 {
                 if !self.cpu.stopped {
                     if !self.cpu.halted {
-                        cycles_to_execute -= self.cpu.step(&mut self.ic, self.debug) as i16;
+                        let (brkpt, cycles_done) = self.cpu.step(&mut self.ic, self.debug);
+                        cycles_to_execute -= cycles_done as i16;
+
+                        if brkpt {
+                            let pc = self.cpu.pc - 1;
+                            self.debugger.enter_debug_mode(&mut self.ic, &mut self.cpu, pc, true);
+                        }
                     }
                 }
 
@@ -179,6 +188,11 @@ impl Gameboy {
 
             //self.cpu.check_and_handle_interrupts(&mut self.ic, self.debug);
             self.gpu.update(&mut self.ic);
+
+            if window.is_key_pressed(Key::F1, KeyRepeat::No) {
+                let pc = self.cpu.pc - 1;
+                self.debugger.enter_debug_mode(&mut self.ic, &mut self.cpu, pc, false);
+            }
             
             window.update_with_buffer(&self.gpu.screen_buffer);
         }

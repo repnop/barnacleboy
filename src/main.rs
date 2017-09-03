@@ -7,6 +7,7 @@ mod mmu;
 mod gpu;
 mod tests;
 mod gameboy;
+mod debugger;
 mod constants;
 mod interconnect;
 

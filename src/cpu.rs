@@ -165,7 +165,7 @@ impl Cpu {
         self.regs.f &= !flags;
     }
 
-    pub fn step(&mut self, ic: &mut Interconnect, debug: bool) -> u8 {
+    pub fn step(&mut self, ic: &mut Interconnect, debug: bool) -> (bool, u8) {
 
         if !self.finished_bootrom && self.pc >= 0x100 {
             self.finished_bootrom = true;
@@ -175,9 +175,9 @@ impl Cpu {
         
         let opcode = read_byte!(self, ic);
         
-        self.execute(ic, opcode);
+        let val = self.execute(ic, opcode);
 
-        CYCLE_TABLE[opcode as usize]
+        (val, CYCLE_TABLE[opcode as usize])
     }
 
     pub fn check_and_handle_interrupts(&mut self, ic: &mut Interconnect, debug: bool) {
@@ -354,8 +354,6 @@ impl Cpu {
 
         debug_triggered
     }
-
-    
 
     fn ld_nn_sp(&mut self, ic: &mut Interconnect, op: u8) {
         let addr = read_word!(self, ic);

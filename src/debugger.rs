@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 use std::io;
+use std::io::Write;
+use std::num::ParseIntError;
 use interconnect::Interconnect;
+use cpu::Cpu;
 
 pub struct Debugger {
     breakpoints: HashMap<u16, u8>
@@ -14,7 +17,7 @@ impl Debugger {
     }
 
     fn set_breakpoint(&mut self, ic: &mut Interconnect, addr: u16) -> Result<(), ()> {
-        if !self.breakpoints.contains_key(addr) {
+        if !self.breakpoints.contains_key(&addr) {
             self.breakpoints.insert(addr, ic.mem_read_byte(addr));
             ic.mem_write_byte(addr, 0xDB);
             Ok(())
@@ -24,43 +27,131 @@ impl Debugger {
     }
 
     fn remove_breakpoint(&mut self, ic: &mut Interconnect, addr: u16) -> Result<(), ()> {
-        if self.breakpoints.contains_key(addr) {
-            let value = self.breakpoints.get(addr);
-            self.breakpoints.remove(addr);
-            ic.mem_write_byte(addr, value);
+        if self.breakpoints.contains_key(&addr) {
+            let value = self.breakpoints.remove(&addr);
+            ic.mem_write_byte(addr, value.unwrap());
+            Ok(())
         } else {
             Err(())
         }
     }
 
-    pub fn enter_debug_mode(&mut self, ic: &mut Interconnect, addr: u16, bkpt_triggered: bool) {
+    pub fn enter_debug_mode(&mut self, ic: &mut Interconnect, cpu: &mut Cpu, addr: u16, bkpt_triggered: bool) {
         if bkpt_triggered {
             if let Err(()) = self.remove_breakpoint(ic, addr) {
                 println!("[X] Couldn't remove breakpoint that was triggered?");
             }
         }
-        loop {
+        'dbglp: loop {
             print!("> ");
+            io::stdout().flush();
             let mut input = String::new();
             match io::stdin().read_line(&mut input) {
                 Ok(_) => {
-                    if let Err(()) = self.execute(ic, &input) {
-                        break;
+                    if let Err(()) = self.execute(ic, cpu, &input) {
+                        break 'dbglp;
                     }
+
+                    io::stdout().flush();
                 },
                 Err(e) => {
                     println!("[X] Error reading line: {}", e);
-                    break;
+                    break 'dbglp;
                 }
             };
         }
     }
 
-    fn execute(&mut self, ic: &mut Interconnect, input: &String) -> Result<(), ()> {
-        let args = input.split(' ').collect();
-
+    fn execute(&mut self, ic: &mut Interconnect, cpu: &mut Cpu, input: &String) -> Result<(), ()> {
+        let args: Vec<&str> = input.split(' ').map(|x| x.trim()).collect();
+        
         match args[0] {
-            "sbp" => self.set_breakpoint()
+            "sbp" => {
+                if &args[1][0..2] == "0x" {
+                    if let Ok(num) = u16::from_str_radix(&args[1][2..], 16) {
+                        if let Err(_) = self.set_breakpoint(ic, num) {
+                            println!("[X] Breakpoint already exists at {:X}", num);
+                        }
+                    } else {
+                        println!("[X] Couldn't parse address");
+                    }
+                } else {
+                    if let Ok(num) = args[1].parse() {
+                        if let Err(_) = self.set_breakpoint(ic, num) {
+                            println!("[X] Breakpoint already exists at {:X}", num);
+                        }
+                    } else {
+                        println!("[X] Couldn't parse address");
+                    }
+                }
+
+                Ok(())
+            },
+            "rbp" => {
+                if &args[1][0..2] == "0x" {
+                    if let Ok(num) = u16::from_str_radix(&args[1][2..], 16) {
+                        if let Err(_) = self.remove_breakpoint(ic, num) {
+                            println!("[X] No breakpoint at {:x} to remove", num);
+                        }
+                    } else {
+                        println!("[X] Couldn't parse address");
+                    }
+                } else {
+                    if let Ok(num) = args[1].parse() {
+                        if let Err(_) = self.remove_breakpoint(ic, num) {
+                            println!("[X] No breakpoint at {:x} to remove", num);
+                        }
+                    } else {
+                        println!("[X] Couldn't parse address");
+                    }
+                }
+                Ok(())
+            },
+            "pbp" => {
+                for (k, _) in &self.breakpoints {
+                    println!("[B] 0x{:X}", k);
+                }
+                Ok(())
+            },
+            "dasm" => {
+                if args.len() == 1 {
+                    println!("0x{:X}: {}", cpu.pc, Debugger::disassemble(ic, cpu.pc).0);
+                } else if args.len() == 2 {
+                    let mut offset = 0;
+                    if let Ok(start) = u16::from_str_radix(&args[1][2..], 16) {
+                        for i in 0..6 {
+                            let (disas, length) = Debugger::disassemble(ic, start + offset);
+                            println!("0x{:X}: {}", start + offset, disas);
+                            offset += length as u16;
+                        }
+                    }
+                } else {
+                    let mut offset = 0;
+                    if let Ok(num) = args[2].parse::<u16>() {
+                        if let Ok(start) = u16::from_str_radix(&args[1][2..], 16) {
+                            for i in 0..(num + 1) {
+                                let (disas, length) = Debugger::disassemble(ic, start + offset);
+                                println!("0x{:X}: {}", start + offset, disas);
+                                offset += length as u16;
+                            }
+                        }
+                    } else {
+                        println!("[X] Couldn't parse number");
+                    }
+                }
+
+                Ok(())
+            }
+            "s" | "step" => {
+                println!("0x{:X}: {}", cpu.pc, Debugger::disassemble(ic, cpu.pc).0);
+                cpu.step(ic, false);
+                Ok(())
+            },
+            "r" | "resume" => Err(()),
+            _ => { 
+                println!("Unknown command"); 
+                Ok(()) 
+            }
         }
     }
 
@@ -169,7 +260,7 @@ impl Debugger {
 
             (0, _, 6, _, _) => {
                 let y = extract_x_y_z_p_q(bytes[0]).1 as usize;
-               () format!("ld {}, 0x{:x}", R_STR[y], bytes[1]), 2)
+                (format!("ld {}, 0x{:x}", R_STR[y], bytes[1]), 2)
             },
 
             // match on y when z = 7
@@ -191,7 +282,7 @@ impl Debugger {
 
             // x = 1
             // match on z = 0 ... 5 | 7
-            (1, 6, 6, _, _) => String::from("halt"),
+            (1, 6, 6, _, _) => (String::from("halt"), 1),
             (1, _, 0...7, _, _) => {
                 let (_, y, z, _, _) = extract_x_y_z_p_q(bytes[0]);
                 (format!("ld {}, {}", R_STR[y as usize], R_STR[z as usize]), 1)
@@ -303,4 +394,12 @@ impl Debugger {
             _ => (String::from("nop"), 1),
         }
     }
+}
+
+fn extract_x_y_z_p_q(opcode: u8) -> (u8, u8, u8, u8, u8) {
+        let (x, y, z) = ((opcode & 0b11000000) >> 6, (opcode & 0b00111000) >> 3, opcode & 0b00000111);
+
+        let (p, q) = ((y & 0b00000110) >> 1, y & 0b00000001);
+
+        (x, y, z, p, q)
 }
