@@ -1,6 +1,6 @@
-use cpu::{Cpu};
+use cpu::Cpu;
 use interconnect::Interconnect;
-use rom::{Rom, BootRom};
+use rom::{BootRom, Rom};
 use gpu::Gpu;
 use constants::*;
 use debugger::Debugger;
@@ -13,7 +13,7 @@ use std::io::BufRead;
 use std::thread;
 use std::time::Duration;
 
-use minifb::{Key, WindowOptions, Window, Scale, KeyRepeat};
+use minifb::{Key, KeyRepeat, Scale, Window, WindowOptions};
 
 pub struct Gameboy {
     cpu: Cpu,
@@ -58,7 +58,10 @@ impl Gameboy {
                 dmg = BootRom::new(&[0; 0x100]);
             }
         } else {
-            return Err(format!("Could not find the specified BOOTROM file: {}", &df));
+            return Err(format!(
+                "Could not find the specified BOOTROM file: {}",
+                &df
+            ));
         }
 
         Ok(Gameboy {
@@ -75,12 +78,15 @@ impl Gameboy {
 
     pub fn run(&mut self) -> Result<(), String> {
         let mut buffer = vec![0xFFFFFFFF; SCREEN_WIDTH * SCREEN_HEIGHT];
-        let mut window = Window::new("Test - ESC to exit",
-                                    SCREEN_WIDTH,
-                                    SCREEN_HEIGHT,
-                                    WindowOptions {
-                                        scale: Scale::X2, 
-                                    .. WindowOptions::default() }).unwrap_or_else(|e| {
+        let mut window = Window::new(
+            "Test - ESC to exit",
+            SCREEN_WIDTH,
+            SCREEN_HEIGHT,
+            WindowOptions {
+                scale: Scale::X2,
+                ..WindowOptions::default()
+            },
+        ).unwrap_or_else(|e| {
             panic!("{}", e);
         });
 
@@ -146,9 +152,15 @@ impl Gameboy {
                 3 => 172,
                 _ => 204,
             };
-            
-            if self.debug {
+
+            /*if self.debug {
                 println!("Processing {} cycles", cycles_to_execute);
+            }*/
+
+            if self.debug & window.is_key_pressed(Key::F1, KeyRepeat::No) {
+                let pc = self.cpu.pc - 1;
+                self.debugger
+                    .enter_debug_mode(&mut self.ic, &mut self.cpu, pc, false);
             }
 
             while cycles_to_execute > 0 {
@@ -159,13 +171,14 @@ impl Gameboy {
 
                         if brkpt {
                             let pc = self.cpu.pc - 1;
-                            self.debugger.enter_debug_mode(&mut self.ic, &mut self.cpu, pc, true);
+                            self.debugger
+                                .enter_debug_mode(&mut self.ic, &mut self.cpu, pc, true);
                         }
                     }
                 }
 
                 let mut joypadreg = self.ic.mem_read_byte(0xFF00);
-                
+
                 // Direction buttons
                 if window.is_key_pressed(Key::Up, KeyRepeat::Yes) {
                     joypadreg &= !((1 << 4) | (1 << 2));
@@ -191,9 +204,10 @@ impl Gameboy {
 
             if window.is_key_pressed(Key::F1, KeyRepeat::No) {
                 let pc = self.cpu.pc - 1;
-                self.debugger.enter_debug_mode(&mut self.ic, &mut self.cpu, pc, false);
+                self.debugger
+                    .enter_debug_mode(&mut self.ic, &mut self.cpu, pc, false);
             }
-            
+
             window.update_with_buffer(&self.gpu.screen_buffer);
         }
 
