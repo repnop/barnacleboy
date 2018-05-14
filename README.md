@@ -1,6 +1,8 @@
 # Barnacleboy
 A Gameboy emulator written in Rust
 
+_Currenly going through a fresh rewrite with some better knowledge and another brain! Stay tuned!_
+
 [![Build Status](https://travis-ci.org/rep-nop/barnacleboy.svg?branch=master)](https://travis-ci.org/rep-nop/barnacleboy)
 
 ## What is Barnacleboy?

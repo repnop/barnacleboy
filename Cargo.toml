@@ -4,5 +4,3 @@ version = "0.1.0"
 authors = ["rep-nop <repnop@outlook.com>"]
 
 [dependencies]
-clap = "*"
-minifb = "0.9.1"
