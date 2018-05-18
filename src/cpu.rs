@@ -17,6 +17,9 @@ pub trait Cpu {
     fn execute(&mut self) -> Result<(), Self::Error>;
     /// Execute opcodes until greater than or equal to `cycle_bound`.
     fn execute_with_cycles(&mut self, cycle_bound: usize) -> Result<(), Self::Error>;
+    /// Executes a single instruction, returning the number of cycles executed
+    /// by the instruction.
+    fn step(&mut self) -> Result<usize, Self::Error>;
 }
 
 /// The original Sharp LR35902 processor, a 8080/Z80 derivative with some
@@ -217,11 +220,15 @@ impl<T: MemoryInterface<Word = u8, Index = u16>> Cpu for SharpLR35902<T> {
     type Error = LRError;
 
     fn execute(&mut self) -> Result<(), LRError> {
-        Ok(())
+        unimplemented!()
     }
 
     fn execute_with_cycles(&mut self, cycle_bound: usize) -> Result<(), Self::Error> {
-        Ok(())
+        unimplemented!()
+    }
+
+    fn step(&mut self) -> Result<usize, Self::Error> {
+        unimplemented!()
     }
 }
 
