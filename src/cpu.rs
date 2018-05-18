@@ -1,11 +1,13 @@
+use memory::MemoryInterface;
+use std::{cell::RefCell, rc::Rc};
 /// Zero flag.
-const FLAG_Z: u8 = 0b1000_0000;
+const F_ZERO: u8 = 0b1000_0000;
 /// Subtraction flag.
-const FLAG_S: u8 = 0b0100_0000;
+const F_SUBTRACT: u8 = 0b0100_0000;
 /// Half-carry flag.
-const FLAG_H: u8 = 0b0010_0000;
+const F_HALFCARRY: u8 = 0b0010_0000;
 /// Carry flag.
-const FLAG_C: u8 = 0b0001_0000;
+const F_CARRY: u8 = 0b0001_0000;
 
 /// Trait defining the interface to the CPU.
 pub trait Cpu {
@@ -20,11 +22,11 @@ pub trait Cpu {
 /// The original Sharp LR35902 processor, a 8080/Z80 derivative with some
 /// interesting changes. Most notably, removal of the shadow register set along
 /// with various opcode changes.
-#[derive(Default)]
-pub struct SharpLR35902 {
+pub struct SharpLR35902<T: MemoryInterface<Word = u8, Index = u16>> {
     registers: SharpLR35902Registers,
     interrupt_pending: bool,
     halted: bool,
+    memory_controller: Rc<RefCell<T>>,
 }
 
 /// The Sharp LR35902 register set. Contains 7 8-bit general purpose registers
@@ -36,7 +38,7 @@ pub struct SharpLR35902 {
 #[cfg(target_endian = "little")]
 #[derive(Debug, Default, Clone, Copy)]
 #[repr(C, align(2))]
-pub struct SharpLR35902Registers {
+struct SharpLR35902Registers {
     pub f: u8,
     pub a: u8,
     pub c: u8,
@@ -52,7 +54,7 @@ pub struct SharpLR35902Registers {
 #[cfg(target_endian = "big")]
 #[derive(Debug, Default, Clone, Copy)]
 #[repr(C, align(2))]
-pub struct SharpLR35902Registers {
+struct SharpLR35902Registers {
     pub a: u8,
     pub f: u8,
     pub b: u8,
@@ -74,62 +76,62 @@ impl SharpLR35902Registers {
 
     /// Sets the zero flag.
     fn set_z(&mut self) {
-        self.f |= FLAG_Z;
+        self.f |= F_ZERO;
     }
 
     /// Sets the subtraction flag.
     fn set_s(&mut self) {
-        self.f |= FLAG_S;
+        self.f |= F_SUBTRACT;
     }
 
     /// Sets the half-carry flag.
     fn set_h(&mut self) {
-        self.f |= FLAG_H;
+        self.f |= F_HALFCARRY;
     }
 
     /// Sets the carry flag.
     fn set_c(&mut self) {
-        self.f |= FLAG_C;
+        self.f |= F_CARRY;
     }
 
     /// Clears the zero flag.
     fn clear_z(&mut self) {
-        self.f &= !FLAG_Z;
+        self.f &= !F_ZERO;
     }
 
     /// Clears the subtraction flag.
     fn clear_s(&mut self) {
-        self.f &= !FLAG_S;
+        self.f &= !F_SUBTRACT;
     }
 
     /// Clears the half-carry flag.
     fn clear_h(&mut self) {
-        self.f &= !FLAG_H;
+        self.f &= !F_HALFCARRY;
     }
 
     /// Clears the carry flag.
     fn clear_c(&mut self) {
-        self.f &= !FLAG_C;
+        self.f &= !F_CARRY;
     }
 
     /// Returns whether or not the zero flag is set.
     fn z(&self) -> bool {
-        self.f & FLAG_Z == FLAG_Z
+        self.f & F_ZERO == F_ZERO
     }
 
     /// Returns whether or not the subtraction flag is set.
     fn s(&self) -> bool {
-        self.f & FLAG_S == FLAG_S
+        self.f & F_SUBTRACT == F_SUBTRACT
     }
 
     /// Returns whether or not the half-carry flag is set.
     fn h(&self) -> bool {
-        self.f & FLAG_H == FLAG_H
+        self.f & F_HALFCARRY == F_HALFCARRY
     }
 
     /// Returns whether or not the carry flag is set.
     fn c(&self) -> bool {
-        self.f & FLAG_C == FLAG_C
+        self.f & F_CARRY == F_CARRY
     }
 }
 
@@ -211,7 +213,7 @@ pub enum LRError {
     InvalidMemoryWrite(u16),
 }
 
-impl Cpu for SharpLR35902 {
+impl<T: MemoryInterface<Word = u8, Index = u16>> Cpu for SharpLR35902<T> {
     type Error = LRError;
 
     fn execute(&mut self) -> Result<(), LRError> {
@@ -223,13 +225,89 @@ impl Cpu for SharpLR35902 {
     }
 }
 
+impl<T: MemoryInterface<Word = u8, Index = u16>> SharpLR35902<T> {
+    /// Creates a new `SharpLR35902` from an `Rc<RefCell<MemoryInterface>>`.
+    pub fn new(mi: Rc<RefCell<T>>) -> SharpLR35902<T> {
+        Self {
+            registers: Default::default(),
+            interrupt_pending: false,
+            halted: false,
+            memory_controller: mi,
+        }
+    }
+
+    /// Reads a byte at the program counter and increments.
+    fn read_instruction_byte(&mut self) -> Result<u8, Box<::std::error::Error>> {
+        let pc = self.registers.pc;
+        self.registers.pc += 1;
+
+        Ok(self.memory_controller.borrow().read(pc)?)
+    }
+
+    /// Reads a byte at the address pointed to by `HL`.
+    fn read_hl(&mut self) -> Result<u8, Box<::std::error::Error>> {
+        let hl = self.registers.as_dwords().hl;
+
+        Ok(self.memory_controller.borrow().read(hl)?)
+    }
+
+    /// Writes a byte at the given address.
+    fn write(&mut self, addr: u16, data: u8) -> Result<(), Box<::std::error::Error>> {
+        self.memory_controller.borrow_mut().write(addr, data)?;
+
+        Ok(())
+    }
+
+    /// Writes a byte to the address pointed to by `HL`.
+    fn write_hl(&mut self, data: u8) -> Result<(), Box<::std::error::Error>> {
+        let hl = self.registers.as_dwords().hl;
+
+        self.memory_controller.borrow_mut().write(hl, data)?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        error::Error, fmt::{self, Display},
+    };
+
+    #[derive(Debug)]
+    struct DummyMemInterface;
+
+    #[derive(Debug)]
+    struct DummyError;
+
+    impl Display for DummyError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "foo")
+        }
+    }
+
+    impl Error for DummyError {
+        fn description(&self) -> &'static str {
+            "foo"
+        }
+    }
+
+    impl MemoryInterface for DummyMemInterface {
+        type Word = u8;
+        type Index = u16;
+        type Error = DummyError;
+
+        fn read(&self, _address: Self::Index) -> Result<Self::Word, Self::Error> {
+            unimplemented!()
+        }
+        fn write(&mut self, _address: Self::Index, _data: Self::Word) -> Result<(), Self::Error> {
+            unimplemented!()
+        }
+    }
 
     #[test]
     fn flags() {
-        let mut cpu = SharpLR35902::default();
+        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface {})));
 
         cpu.registers.set_c();
         assert!(cpu.registers.c());
@@ -258,7 +336,7 @@ mod tests {
 
     #[test]
     fn registers() {
-        let mut cpu = SharpLR35902::default();
+        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface {})));
 
         cpu.registers.a = 0x11;
         cpu.registers.f = 0x22;
