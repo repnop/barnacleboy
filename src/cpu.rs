@@ -334,27 +334,9 @@ fn ld_r_r(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        error::Error, fmt::{self, Display},
-    };
 
     #[derive(Debug)]
     struct DummyMemInterface;
-
-    #[derive(Debug)]
-    struct DummyError;
-
-    impl Display for DummyError {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            write!(f, "foo")
-        }
-    }
-
-    impl Error for DummyError {
-        fn description(&self) -> &'static str {
-            "foo"
-        }
-    }
 
     impl MemoryInterface for DummyMemInterface {
         type Word = u8;
