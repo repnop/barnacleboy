@@ -22,14 +22,16 @@ pub trait Cpu {
     fn step(&mut self) -> Result<usize, Self::Error>;
 }
 
+type MemoryController = Rc<RefCell<MemoryInterface<Word = u8, Index = u16, Error = LRError>>>;
+type SharpResult = Result<(), LRError>;
 /// The original Sharp LR35902 processor, a 8080/Z80 derivative with some
 /// interesting changes. Most notably, removal of the shadow register set along
 /// with various opcode changes.
-pub struct SharpLR35902<T: MemoryInterface<Word = u8, Index = u16>> {
+pub struct SharpLR35902 {
     registers: SharpLR35902Registers,
     interrupt_pending: bool,
     halted: bool,
-    memory_controller: Rc<RefCell<T>>,
+    memory_controller: MemoryController,
 }
 
 /// The Sharp LR35902 register set. Contains 7 8-bit general purpose registers
@@ -74,7 +76,7 @@ impl SharpLR35902Registers {
     /// Temporarily transmutes `SharpLR35902Registers` into `DWordRegisters`
     /// which contain the 16-bit register pairs for convenience.
     fn as_dwords(&mut self) -> &mut DWordRegisters {
-        unsafe { ::std::mem::transmute(self) }
+        unsafe { &mut *(self as *mut SharpLR35902Registers as *mut DWordRegisters) }
     }
 
     /// Sets the zero flag.
@@ -211,14 +213,36 @@ impl ::std::ops::IndexMut<u8> for DWordRegisters {
 }
 
 /// CPU errors.
+#[derive(Debug)]
 pub enum LRError {
     InvalidMemoryRead(u16),
     InvalidMemoryWrite(u16),
 }
 
-impl<T: MemoryInterface<Word = u8, Index = u16>> Cpu for SharpLR35902<T> {
-    type Error = LRError;
+impl ::std::fmt::Display for LRError {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                LRError::InvalidMemoryRead(addr) => format!("Invalid memory read at {:X}", addr),
+                LRError::InvalidMemoryWrite(addr) => format!("Invalid memory write at {:X}", addr),
+            }
+        )
+    }
+}
 
+impl ::std::error::Error for LRError {
+    fn description(&self) -> &'static str {
+        match self {
+            LRError::InvalidMemoryRead(_) => "Invalid memory read",
+            LRError::InvalidMemoryWrite(_) => "Invalid memory write",
+        }
+    }
+}
+
+impl Cpu for SharpLR35902 {
+    type Error = LRError;
     fn execute(&mut self) -> Result<(), LRError> {
         unimplemented!()
     }
@@ -232,9 +256,9 @@ impl<T: MemoryInterface<Word = u8, Index = u16>> Cpu for SharpLR35902<T> {
     }
 }
 
-impl<T: MemoryInterface<Word = u8, Index = u16>> SharpLR35902<T> {
+impl SharpLR35902 {
     /// Creates a new `SharpLR35902` from an `Rc<RefCell<MemoryInterface>>`.
-    pub fn new(mi: Rc<RefCell<T>>) -> SharpLR35902<T> {
+    pub fn new(mi: MemoryController) -> SharpLR35902 {
         Self {
             registers: Default::default(),
             interrupt_pending: false,
@@ -244,7 +268,7 @@ impl<T: MemoryInterface<Word = u8, Index = u16>> SharpLR35902<T> {
     }
 
     /// Reads a byte at the program counter and increments.
-    fn read_instruction_byte(&mut self) -> Result<u8, Box<::std::error::Error>> {
+    fn read_instruction_byte(&mut self) -> Result<u8, LRError> {
         let pc = self.registers.pc;
         self.registers.pc += 1;
 
@@ -252,26 +276,59 @@ impl<T: MemoryInterface<Word = u8, Index = u16>> SharpLR35902<T> {
     }
 
     /// Reads a byte at the address pointed to by `HL`.
-    fn read_hl(&mut self) -> Result<u8, Box<::std::error::Error>> {
+    fn read_hl(&mut self) -> Result<u8, LRError> {
         let hl = self.registers.as_dwords().hl;
 
         Ok(self.memory_controller.borrow().read(hl)?)
     }
 
     /// Writes a byte at the given address.
-    fn write(&mut self, addr: u16, data: u8) -> Result<(), Box<::std::error::Error>> {
+    fn write(&mut self, addr: u16, data: u8) -> Result<(), LRError> {
         self.memory_controller.borrow_mut().write(addr, data)?;
 
         Ok(())
     }
 
     /// Writes a byte to the address pointed to by `HL`.
-    fn write_hl(&mut self, data: u8) -> Result<(), Box<::std::error::Error>> {
+    fn write_hl(&mut self, data: u8) -> Result<(), LRError> {
         let hl = self.registers.as_dwords().hl;
 
         self.memory_controller.borrow_mut().write(hl, data)?;
         Ok(())
     }
+}
+
+struct OpcodeBits {
+    x: u8,
+    y: u8,
+    z: u8,
+    p: u8,
+    q: u8,
+}
+
+impl From<u8> for OpcodeBits {
+    fn from(op: u8) -> OpcodeBits {
+        let x = (op & 0b1100_0000) >> 6;
+        let y = (op & 0b0011_1000) >> 3;
+        let z = op & 0b0000_0111;
+        let p = (y & 0b110) >> 1;
+        let q = y & 0b001;
+
+        OpcodeBits { x, y, z, p, q }
+    }
+}
+
+const INSTRUCTIONS: [fn(&mut SharpLR35902, u8) -> SharpResult; 2] = [nop, ld_r_r];
+
+fn nop(_: &mut SharpLR35902, _: u8) -> SharpResult {
+    Ok(())
+}
+
+fn ld_r_r(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let bits = OpcodeBits::from(opcode);
+    cpu.registers[bits.y] = cpu.registers[bits.z];
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -302,7 +359,7 @@ mod tests {
     impl MemoryInterface for DummyMemInterface {
         type Word = u8;
         type Index = u16;
-        type Error = DummyError;
+        type Error = LRError;
 
         fn read(&self, _address: Self::Index) -> Result<Self::Word, Self::Error> {
             unimplemented!()
@@ -358,5 +415,17 @@ mod tests {
         assert_eq!(cpu.registers.as_dwords().bc, 0x3344);
         assert_eq!(cpu.registers.as_dwords().de, 0x5566);
         assert_eq!(cpu.registers.as_dwords().hl, 0x7788);
+    }
+
+    #[test]
+    fn opcode_bits() {
+        let opcode = 0b1010_1010;
+        let bits = OpcodeBits::from(opcode);
+
+        assert_eq!(bits.x, 0b10);
+        assert_eq!(bits.y, 0b101);
+        assert_eq!(bits.z, 0b010);
+        assert_eq!(bits.p, 0b10);
+        assert_eq!(bits.q, 0b1);
     }
 }
