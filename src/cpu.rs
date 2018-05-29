@@ -745,4 +745,49 @@ mod tests {
         assert!(super::ld_r_at_hl(&mut cpu, 0x7E).is_ok());
         assert_eq!(cpu.registers.a, 0xFF);
     }
+
+    #[test]
+    fn ld_at_hl_r() {
+        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
+
+        cpu.registers.as_dwords().hl = 0x0011;
+        cpu.registers.b = 0x01;
+        cpu.registers.c = 0x02;
+        cpu.registers.d = 0x03;
+        cpu.registers.e = 0x04;
+        cpu.registers.a = 0x05;
+
+        assert!(super::ld_at_hl_r(&mut cpu, 0x70).is_ok());
+        assert_eq!(cpu.read_hl().unwrap(), 0x01);
+
+        assert!(super::ld_at_hl_r(&mut cpu, 0x71).is_ok());
+        assert_eq!(cpu.read_hl().unwrap(), 0x02);
+
+        assert!(super::ld_at_hl_r(&mut cpu, 0x72).is_ok());
+        assert_eq!(cpu.read_hl().unwrap(), 0x03);
+
+        assert!(super::ld_at_hl_r(&mut cpu, 0x73).is_ok());
+        assert_eq!(cpu.read_hl().unwrap(), 0x04);
+
+        assert!(super::ld_at_hl_r(&mut cpu, 0x74).is_ok());
+        assert_eq!(cpu.read_hl().unwrap(), 0x00);
+
+        assert!(super::ld_at_hl_r(&mut cpu, 0x75).is_ok());
+        assert_eq!(cpu.read_hl().unwrap(), 0x11);
+
+        // 0x76 is the instruction `HALT`
+        assert!(super::ld_at_hl_r(&mut cpu, 0x77).is_ok());
+        assert_eq!(cpu.read_hl().unwrap(), 0x05);
+    }
+
+    #[test]
+    fn ld_at_hl_d8() {
+        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
+
+        cpu.registers.as_dwords().hl = 0x0011;
+        cpu.write(0x00, 0xFF);
+
+        assert!(super::ld_at_hl_d8(&mut cpu, 0x36).is_ok());
+        assert_eq!(cpu.read_hl().unwrap(), 0xFF);
+    }
 }
