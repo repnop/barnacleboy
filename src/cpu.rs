@@ -275,6 +275,19 @@ impl SharpLR35902 {
         Ok(self.memory_controller.borrow().read(pc)?)
     }
 
+    /// Reads a word at the program counter and increments.
+    fn read_instruction_word(&mut self) -> Result<u16, LRError> {
+        let first_byte = self.read_instruction_byte()?;
+        let second_byte = self.read_instruction_byte()?;
+
+        Ok(((second_byte as u16) << 8) | first_byte as u16)
+    }
+
+    /// Reads a byte at the address `addr`.
+    fn read(&mut self, addr: u16) -> Result<u8, LRError> {
+        Ok(self.memory_controller.borrow().read(addr)?)
+    }
+
     /// Reads a byte at the address pointed to by `HL`.
     fn read_hl(&mut self) -> Result<u8, LRError> {
         let hl = self.registers.as_dwords().hl;
@@ -320,10 +333,190 @@ impl From<u8> for OpcodeBits {
 
 const INSTRUCTIONS: [fn(&mut SharpLR35902, u8) -> SharpResult; 2] = [nop, ld_r_r];
 
+/// NOP instruction. Does nothing.
+///
+/// Flags affected: none
 fn nop(_: &mut SharpLR35902, _: u8) -> SharpResult {
     Ok(())
 }
 
+/// Stops the processor.
+///
+/// Flags affected: none
+fn stop(_: &mut SharpLR35902, _: u8) -> SharpResult {
+    // No-Op for now
+    Ok(())
+}
+
+/// Reads a 16-bit value at the PC into the `BC` register.
+///
+/// Flags affected: none
+fn ld_bc_d16(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
+    cpu.registers.as_dwords().bc = cpu.read_instruction_word()?;
+    Ok(())
+}
+
+/// Reads a 16-bit value at the PC into the `DE` register.
+///
+/// Flags affected: none
+fn ld_de_d16(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
+    cpu.registers.as_dwords().de = cpu.read_instruction_word()?;
+    Ok(())
+}
+
+/// Reads a 16-bit value at the PC into the `HL` register.
+///
+/// Flags affected: none
+fn ld_hl_d16(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
+    cpu.registers.as_dwords().hl = cpu.read_instruction_word()?;
+    Ok(())
+}
+
+/// Reads a 16-bit value at the PC into the `SP` register.
+///
+/// Flags affected: none
+fn ld_sp_d16(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
+    cpu.registers.as_dwords().sp = cpu.read_instruction_word()?;
+    Ok(())
+}
+
+/// Loads the value of register `A` into the memory address pointed to by
+/// register `BC`.
+///
+/// Flags affected: none
+fn ld_at_bc_a(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
+    let addr = cpu.registers.as_dwords().bc;
+    let a = cpu.registers.a;
+
+    cpu.write(addr, a)?;
+    Ok(())
+}
+
+/// Loads the value of register `A` into the memory address pointed to by
+/// register `DE`.
+///
+/// Flags affected: none
+fn ld_at_de_a(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
+    let addr = cpu.registers.as_dwords().de;
+    let a = cpu.registers.a;
+
+    cpu.write(addr, a)?;
+    Ok(())
+}
+
+/// Loads the value of register `A` into the memory address pointed to by
+/// register `HL` then increments `HL`.
+///
+/// Flags affected: none
+fn ld_at_hli_a(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
+    let a = cpu.registers.a;
+
+    cpu.write_hl(a);
+    cpu.registers.as_dwords().hl += 1;
+
+    Ok(())
+}
+
+/// Loads the value of register `A` into the memory address pointed to by
+/// register `HL` then decrements `HL`.
+///
+/// Flags affected: none
+fn ld_at_hld_a(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
+    let a = cpu.registers.a;
+
+    cpu.write_hl(a);
+    cpu.registers.as_dwords().hl -= 1;
+
+    Ok(())
+}
+
+/// Reads an immediate 8-bit value into the specified register.
+///
+/// Flags affected: none
+fn ld_r_d8(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let bits = OpcodeBits::from(opcode);
+
+    if bits.y != 6 {
+        cpu.registers[bits.y] = cpu.read_instruction_byte()?;
+    } else {
+        let data = cpu.read_instruction_byte()?;
+        cpu.write_hl(data)?;
+    }
+
+    Ok(())
+}
+
+/// Reads an 8-bit value pointed to by register `HL` into the specified
+/// register.
+///
+/// Flags affected: none
+fn ld_r_at_hl(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let bits = OpcodeBits::from(opcode);
+    cpu.registers[bits.y] = cpu.read_hl()?;
+
+    Ok(())
+}
+
+/// Writes an 8-bit value in the specified register to the memory location
+/// pointed to by register `HL`.
+///
+/// Flags affected: none
+fn ld_at_hl_r(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let bits = OpcodeBits::from(opcode);
+    let val = cpu.registers[bits.z];
+
+    cpu.write_hl(val)?;
+
+    Ok(())
+}
+
+/// Writes an 8-bit value in the specified register to the memory location
+/// pointed to by register `HL`.
+///
+/// Flags affected: none
+fn ld_at_hl_d8(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let val = cpu.read_instruction_byte()?;
+    cpu.write_hl(val)?;
+
+    Ok(())
+}
+
+/// Reads an 8-bit value pointed to by register `BC` into the `A`
+/// register.
+///
+/// Flags affected: none
+fn ld_a_at_bc(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let addr = cpu.registers.as_dwords().bc;
+    cpu.registers.a = cpu.read(addr)?;
+
+    Ok(())
+}
+
+/// Reads an 8-bit value pointed to by register `DE` into the `A`
+/// register.
+///
+/// Flags affected: none
+fn ld_a_at_de(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let addr = cpu.registers.as_dwords().de;
+    cpu.registers.a = cpu.read(addr)?;
+
+    Ok(())
+}
+
+/// Reads an 8-bit value pointed to by register `C` + 0xFF00 into the `A`
+/// register.
+///
+/// Flags affected: none
+fn ld_a_at_c(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let addr = cpu.registers.c as u16 + 0xFF00;
+    cpu.registers.a = cpu.read(addr)?;
+
+    Ok(())
+}
+
+/// Reads the contents of one register into another.
+///
+/// Flags affected: none
 fn ld_r_r(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
     let bits = OpcodeBits::from(opcode);
     cpu.registers[bits.y] = cpu.registers[bits.z];
@@ -335,25 +528,28 @@ fn ld_r_r(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
 mod tests {
     use super::*;
 
-    #[derive(Debug)]
-    struct DummyMemInterface;
+    #[derive(Debug, Default)]
+    struct DummyMemInterface {
+        mem: [u8; 32],
+    }
 
     impl MemoryInterface for DummyMemInterface {
         type Word = u8;
         type Index = u16;
         type Error = LRError;
 
-        fn read(&self, _address: Self::Index) -> Result<Self::Word, Self::Error> {
-            unimplemented!()
+        fn read(&self, address: Self::Index) -> Result<Self::Word, Self::Error> {
+            Ok(self.mem[address as usize])
         }
-        fn write(&mut self, _address: Self::Index, _data: Self::Word) -> Result<(), Self::Error> {
-            unimplemented!()
+        fn write(&mut self, address: Self::Index, data: Self::Word) -> Result<(), Self::Error> {
+            self.mem[address as usize] = data;
+            Ok(())
         }
     }
 
     #[test]
     fn flags() {
-        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface {})));
+        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
 
         cpu.registers.set_c();
         assert!(cpu.registers.c());
@@ -382,7 +578,7 @@ mod tests {
 
     #[test]
     fn registers() {
-        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface {})));
+        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
 
         cpu.registers.a = 0x11;
         cpu.registers.f = 0x22;
@@ -409,5 +605,144 @@ mod tests {
         assert_eq!(bits.z, 0b010);
         assert_eq!(bits.p, 0b10);
         assert_eq!(bits.q, 0b1);
+    }
+
+    #[test]
+    fn ld_bc_d16() {
+        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
+        cpu.write(0x00, 0x00);
+        cpu.write(0x01, 0xFF);
+        assert!(super::ld_bc_d16(&mut cpu, 0x01).is_ok());
+        assert_eq!(cpu.registers.as_dwords().bc, 0xFF00);
+    }
+
+    #[test]
+    fn ld_de_d16() {
+        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
+        cpu.write(0x00, 0x00);
+        cpu.write(0x01, 0xFF);
+        assert!(super::ld_de_d16(&mut cpu, 0x11).is_ok());
+        assert_eq!(cpu.registers.as_dwords().de, 0xFF00);
+    }
+
+    #[test]
+    fn ld_hl_d16() {
+        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
+        cpu.write(0x00, 0x00);
+        cpu.write(0x01, 0xFF);
+        assert!(super::ld_hl_d16(&mut cpu, 0x21).is_ok());
+        assert_eq!(cpu.registers.as_dwords().hl, 0xFF00);
+    }
+
+    #[test]
+    fn ld_sp_d16() {
+        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
+        cpu.write(0x00, 0x00);
+        cpu.write(0x01, 0xFF);
+        assert!(super::ld_sp_d16(&mut cpu, 0x31).is_ok());
+        assert_eq!(cpu.registers.as_dwords().sp, 0xFF00);
+    }
+
+    #[test]
+    fn ld_at_bc_a() {
+        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
+        cpu.registers.a = 0xFF;
+        cpu.registers.as_dwords().bc = 0x01;
+        assert!(super::ld_at_bc_a(&mut cpu, 0x02).is_ok());
+        assert_eq!(cpu.read(0x01).unwrap(), 0xFF);
+    }
+
+    #[test]
+    fn ld_at_de_a() {
+        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
+        cpu.registers.a = 0xFF;
+        cpu.registers.as_dwords().de = 0x01;
+        assert!(super::ld_at_de_a(&mut cpu, 0x12).is_ok());
+        assert_eq!(cpu.read(0x01).unwrap(), 0xFF);
+    }
+
+    #[test]
+    fn ld_at_hli_a() {
+        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
+        cpu.registers.a = 0xFF;
+        cpu.registers.as_dwords().hl = 0x01;
+        assert!(super::ld_at_hli_a(&mut cpu, 0x22).is_ok());
+        assert_eq!(cpu.read(0x01).unwrap(), 0xFF);
+        assert_eq!(cpu.registers.as_dwords().hl, 0x02);
+    }
+
+    #[test]
+    fn ld_at_hld_a() {
+        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
+        cpu.registers.a = 0xFF;
+        cpu.registers.as_dwords().hl = 0x01;
+        assert!(super::ld_at_hld_a(&mut cpu, 0x22).is_ok());
+        assert_eq!(cpu.read(0x01).unwrap(), 0xFF);
+        assert_eq!(cpu.registers.as_dwords().hl, 0x00);
+    }
+
+    #[test]
+    fn ld_r_d8() {
+        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
+
+        for i in 0u8..8u8 {
+            cpu.write(i as u16, i + 1);
+        }
+
+        assert!(super::ld_r_d8(&mut cpu, 0x06).is_ok());
+        assert_eq!(cpu.registers.b, 0x01);
+
+        assert!(super::ld_r_d8(&mut cpu, 0x0E).is_ok());
+        assert_eq!(cpu.registers.c, 0x02);
+
+        assert!(super::ld_r_d8(&mut cpu, 0x16).is_ok());
+        assert_eq!(cpu.registers.d, 0x03);
+
+        assert!(super::ld_r_d8(&mut cpu, 0x1E).is_ok());
+        assert_eq!(cpu.registers.e, 0x04);
+
+        assert!(super::ld_r_d8(&mut cpu, 0x26).is_ok());
+        assert_eq!(cpu.registers.h, 0x05);
+
+        assert!(super::ld_r_d8(&mut cpu, 0x2E).is_ok());
+        assert_eq!(cpu.registers.l, 0x06);
+
+        cpu.registers.as_dwords().hl = 0x0000;
+        assert!(super::ld_r_d8(&mut cpu, 0x36).is_ok());
+        assert_eq!(cpu.read_hl().unwrap(), 0x07);
+
+        assert!(super::ld_r_d8(&mut cpu, 0x3E).is_ok());
+        assert_eq!(cpu.registers.a, 0x08);
+    }
+
+    #[test]
+    fn ld_r_at_hl() {
+        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
+
+        cpu.write(0x0000, 0xFF);
+
+        assert!(super::ld_r_at_hl(&mut cpu, 0x46).is_ok());
+        assert_eq!(cpu.registers.b, 0xFF);
+
+        assert!(super::ld_r_at_hl(&mut cpu, 0x4E).is_ok());
+        assert_eq!(cpu.registers.c, 0xFF);
+
+        assert!(super::ld_r_at_hl(&mut cpu, 0x56).is_ok());
+        assert_eq!(cpu.registers.d, 0xFF);
+
+        assert!(super::ld_r_at_hl(&mut cpu, 0x5E).is_ok());
+        assert_eq!(cpu.registers.e, 0xFF);
+
+        assert!(super::ld_r_at_hl(&mut cpu, 0x66).is_ok());
+        assert_eq!(cpu.registers.h, 0xFF);
+
+        cpu.registers.h = 0x00;
+        assert!(super::ld_r_at_hl(&mut cpu, 0x6E).is_ok());
+        assert_eq!(cpu.registers.l, 0xFF);
+
+        // 0x76 is the instruction `HALT`
+        cpu.registers.l = 0x00;
+        assert!(super::ld_r_at_hl(&mut cpu, 0x7E).is_ok());
+        assert_eq!(cpu.registers.a, 0xFF);
     }
 }
