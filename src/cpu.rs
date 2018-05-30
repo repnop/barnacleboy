@@ -411,7 +411,7 @@ fn ld_at_de_a(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
 fn ld_at_hli_a(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
     let a = cpu.registers.a;
 
-    cpu.write_hl(a);
+    cpu.write_hl(a)?;
     cpu.registers.as_dwords().hl += 1;
 
     Ok(())
@@ -424,7 +424,29 @@ fn ld_at_hli_a(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
 fn ld_at_hld_a(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
     let a = cpu.registers.a;
 
-    cpu.write_hl(a);
+    cpu.write_hl(a)?;
+    cpu.registers.as_dwords().hl -= 1;
+
+    Ok(())
+}
+
+/// Loads the value of register `A` into the memory address pointed to by
+/// register `HL` then increments `HL`.
+///
+/// Flags affected: none
+fn ld_a_at_hli(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
+    cpu.registers.a = cpu.read_hl()?;
+    cpu.registers.as_dwords().hl += 1;
+
+    Ok(())
+}
+
+/// Loads the value of register `A` into the memory address pointed to by
+/// register `HL` then decrements `HL`.
+///
+/// Flags affected: none
+fn ld_a_at_hld(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
+    cpu.registers.a = cpu.read_hl()?;
     cpu.registers.as_dwords().hl -= 1;
 
     Ok(())
@@ -510,6 +532,64 @@ fn ld_a_at_de(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
 fn ld_a_at_c(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
     let addr = cpu.registers.c as u16 + 0xFF00;
     cpu.registers.a = cpu.read(addr)?;
+
+    Ok(())
+}
+
+/// Writes the 8-bit contents of the `A` register to the memory location pointed
+/// to by register `C` + 0xFF00.
+///
+/// Flags affected: none
+fn ld_at_c_a(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let addr = cpu.registers.c as u16 + 0xFF00;
+    let a = cpu.registers.a;
+    cpu.write(addr, a)?;
+
+    Ok(())
+}
+
+/// Reads an 8-bit value pointed to by the immediate 8-bit operand `d8` + 0xFF00
+/// into the `A` register.
+///
+/// Flags affected: none
+fn ld_a_at_d8(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let addr = cpu.read_instruction_byte()? as u16 + 0xFF00;
+    cpu.registers.a = cpu.read(addr)?;
+
+    Ok(())
+}
+
+/// Writes the 8-bit contents of the `A` register to the memory location pointed
+/// to by the immediate 8-bit operand `d8` + 0xFF00.
+///
+/// Flags affected: none
+fn ld_at_d8_a(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let addr = cpu.read_instruction_byte()? as u16 + 0xFF00;
+    let a = cpu.registers.a;
+    cpu.write(addr, a)?;
+
+    Ok(())
+}
+
+/// Reads an 8-bit value pointed to by the immediate 816bit operand `d16`
+/// into the `A` register.
+///
+/// Flags affected: none
+fn ld_a_at_d16(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let addr = cpu.read_instruction_word()?;
+    cpu.registers.a = cpu.read(addr)?;
+
+    Ok(())
+}
+
+/// Writes the 8-bit contents of the `A` register to the memory location pointed
+/// to by the immediate 16-bit operand `d16`
+///
+/// Flags affected: none
+fn ld_at_d16_a(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let addr = cpu.read_instruction_word()?;
+    let a = cpu.registers.a;
+    cpu.write(addr, a)?;
 
     Ok(())
 }
