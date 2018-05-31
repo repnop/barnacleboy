@@ -28,9 +28,13 @@ type SharpResult = Result<(), LRError>;
 /// interesting changes. Most notably, removal of the shadow register set along
 /// with various opcode changes.
 pub struct SharpLR35902 {
+    /// CPU registers.
     registers: SharpLR35902Registers,
+    /// Interrupt pending flag. (Do we need this?)
     interrupt_pending: bool,
+    /// Whether the CPU is halted or not.
     halted: bool,
+    /// `Rc` to the memory controller object.
     memory_controller: MemoryController,
 }
 
@@ -43,32 +47,52 @@ pub struct SharpLR35902 {
 #[cfg(target_endian = "little")]
 #[derive(Debug, Default, Clone, Copy)]
 #[repr(C, align(2))]
-struct SharpLR35902Registers {
+pub struct SharpLR35902Registers {
+    /// Flags register.
     pub f: u8,
+    /// General purpose `A` register.
     pub a: u8,
+    /// General purpose `C` register.
     pub c: u8,
+    /// General purpose `B` register.
     pub b: u8,
+    /// General purpose `E` register.
     pub e: u8,
+    /// General purpose `D` register.
     pub d: u8,
+    /// General purpose `L` register.
     pub l: u8,
+    /// General purpose `H` register.
     pub h: u8,
+    /// Program counter.
     pub pc: u16,
+    /// Stack pointer.
     pub sp: u16,
 }
 
 #[cfg(target_endian = "big")]
 #[derive(Debug, Default, Clone, Copy)]
 #[repr(C, align(2))]
-struct SharpLR35902Registers {
+pub struct SharpLR35902Registers {
+    /// General purpose `A` register.
     pub a: u8,
+    /// Flags register.
     pub f: u8,
+    /// General purpose `B` register.
     pub b: u8,
+    /// General purpose `C` register.
     pub c: u8,
+    /// General purpose `D` register.
     pub d: u8,
+    /// General purpose `D` register.
     pub e: u8,
+    /// General purpose `H` register.
     pub h: u8,
+    /// General purpose `L` register.
     pub l: u8,
+    /// Program counter.
     pub pc: u16,
+    /// Stack pointer.
     pub sp: u16,
 }
 
@@ -144,11 +168,17 @@ impl SharpLR35902Registers {
 #[derive(Clone, Copy, Default, Debug)]
 #[repr(C, align(2))]
 struct DWordRegisters {
+    /// Register pair `AF`.
     pub af: u16,
+    /// Register pair `BC`.
     pub bc: u16,
+    /// Register pair `DE`.
     pub de: u16,
+    /// Register pair `HL`.
     pub hl: u16,
+    /// Program counter.
     pub pc: u16,
+    /// Stack pointer.
     pub sp: u16,
 }
 
@@ -268,7 +298,7 @@ impl SharpLR35902 {
     }
 
     /// Reads a byte at the program counter and increments.
-    fn read_instruction_byte(&mut self) -> Result<u8, LRError> {
+    fn read_instruction_word(&mut self) -> Result<u8, LRError> {
         let pc = self.registers.pc;
         self.registers.pc += 1;
 
@@ -276,9 +306,9 @@ impl SharpLR35902 {
     }
 
     /// Reads a word at the program counter and increments.
-    fn read_instruction_word(&mut self) -> Result<u16, LRError> {
-        let first_byte = self.read_instruction_byte()?;
-        let second_byte = self.read_instruction_byte()?;
+    fn read_instruction_dword(&mut self) -> Result<u16, LRError> {
+        let first_byte = self.read_instruction_word()?;
+        let second_byte = self.read_instruction_word()?;
 
         Ok(((second_byte as u16) << 8) | first_byte as u16)
     }
@@ -311,6 +341,19 @@ impl SharpLR35902 {
     }
 }
 
+/// Groups of bits in an opcode.
+///
+/// Broken up into the following groups:
+///
+/// Bits 6-7: x
+///
+/// Bits 3-5: y
+///
+///     Bits 4-5: p
+///
+///     Bit 3: q
+///
+/// Bits 0-2: z
 struct OpcodeBits {
     x: u8,
     y: u8,
@@ -331,6 +374,7 @@ impl From<u8> for OpcodeBits {
     }
 }
 
+/// Array of instructions for executing individual opcodes.
 const INSTRUCTIONS: [fn(&mut SharpLR35902, u8) -> SharpResult; 2] = [nop, ld_r_r];
 
 /// NOP instruction. Does nothing.
@@ -429,9 +473,9 @@ fn ld_r_d8(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
     let bits = OpcodeBits::from(opcode);
 
     if bits.y != 6 {
-        cpu.registers[bits.y] = cpu.read_instruction_byte()?;
+        cpu.registers[bits.y] = cpu.read_instruction_word()?;
     } else {
-        let data = cpu.read_instruction_byte()?;
+        let data = cpu.read_instruction_word()?;
         cpu.write_hl(data)?;
     }
 
@@ -467,7 +511,7 @@ fn ld_at_hl_r(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
 ///
 /// Flags affected: none
 fn ld_at_hl_d8(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
-    let val = cpu.read_instruction_byte()?;
+    let val = cpu.read_instruction_word()?;
     cpu.write_hl(val)?;
 
     Ok(())
@@ -523,7 +567,7 @@ fn ld_at_c_a(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
 ///
 /// Flags affected: none
 fn ld_a_at_d8(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
-    let addr = cpu.read_instruction_byte()? as u16 + 0xFF00;
+    let addr = cpu.read_instruction_word()? as u16 + 0xFF00;
     cpu.registers.a = cpu.read(addr)?;
 
     Ok(())
@@ -534,7 +578,7 @@ fn ld_a_at_d8(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
 ///
 /// Flags affected: none
 fn ld_at_d8_a(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
-    let addr = cpu.read_instruction_byte()? as u16 + 0xFF00;
+    let addr = cpu.read_instruction_word()? as u16 + 0xFF00;
     let a = cpu.registers.a;
     cpu.write(addr, a)?;
 
@@ -546,7 +590,7 @@ fn ld_at_d8_a(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
 ///
 /// Flags affected: none
 fn ld_a_at_d16(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
-    let addr = cpu.read_instruction_word()?;
+    let addr = cpu.read_instruction_dword()?;
     cpu.registers.a = cpu.read(addr)?;
 
     Ok(())
@@ -557,7 +601,7 @@ fn ld_a_at_d16(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
 ///
 /// Flags affected: none
 fn ld_at_d16_a(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
-    let addr = cpu.read_instruction_word()?;
+    let addr = cpu.read_instruction_dword()?;
     let a = cpu.registers.a;
     cpu.write(addr, a)?;
 
@@ -581,7 +625,7 @@ fn ld_r_r(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
 /// Flags affected: none
 fn ld_rr_nn(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
     let bits = OpcodeBits::from(opcode);
-    let data = cpu.read_instruction_word()?;
+    let data = cpu.read_instruction_dword()?;
 
     if bits.p != 0x03 {
         cpu.registers.as_dwords()[bits.p] = data;
@@ -641,7 +685,7 @@ fn pop_rr(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
 ///
 /// Flags affected: C - *, H - *, S - 0, Z - 0
 fn ldhl_sp_e(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
-    let e = cpu.read_instruction_byte()? as i8 as i16;
+    let e = cpu.read_instruction_word()? as i8 as i16;
     let sp = cpu.registers.sp as i16;
 
     let result = i16_add(sp, e);
@@ -667,7 +711,7 @@ fn ldhl_sp_e(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
 ///
 /// Flags affected: none
 fn ld_d16_sp(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
-    let d16 = cpu.read_instruction_byte()? as u16 | (cpu.read_instruction_byte()? as u16) << 8;
+    let d16 = cpu.read_instruction_word()? as u16 | (cpu.read_instruction_word()? as u16) << 8;
     let sp = cpu.registers.sp;
 
     cpu.write(d16, (sp & 0x00FF) as u8)?;
@@ -703,7 +747,7 @@ fn add_a_r(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
 ///
 /// Flags affected: C - *, H - *, S - 0, Z - *
 fn add_a_d8(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
-    let d8 = cpu.read_instruction_byte()?;
+    let d8 = cpu.read_instruction_word()?;
 
     let (result, flags) = u8_add(cpu.registers.a, d8).into_parts();
 
@@ -780,7 +824,7 @@ fn sub_a_r(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
 ///
 /// Flags affected: C - *, H - *, S - 1, Z - *
 fn sub_a_d8(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
-    let d8 = cpu.read_instruction_byte()?;
+    let d8 = cpu.read_instruction_word()?;
 
     let (result, flags) = u8_sub(cpu.registers.a, d8).into_parts();
 
@@ -834,16 +878,23 @@ fn sbc_a_d8(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
 }
 
 // BEGIN HELPER FUNCTIONS
+/// Contains the result and flag changes of an ALU operation.
 #[derive(Debug, Default, PartialEq)]
 struct AluResult<T: Default> {
+    /// Result of the operation.
     result: T,
+    /// Whether the zero flag was set or not.
     zero: bool,
+    /// Whether the carry flag was set or not.
     carry: bool,
+    /// Whether the half-carry flag was set or not.
     half_carry: bool,
+    /// Whether the subtract flag was set or not.
     subtract: bool,
 }
 
 impl<T: Default> AluResult<T> {
+    /// Returns the result of the operation and the flags in `u8` form.
     fn into_parts(self) -> (T, u8) {
         let res = self.result;
         let flags = {
@@ -872,6 +923,9 @@ impl<T: Default> AluResult<T> {
     }
 }
 
+/// Helper function.
+///
+/// Returns an `AluResult` of the addition of two `u8`s.
 fn u8_add(first: u8, second: u8) -> AluResult<u8> {
     let mut chc = AluResult::default();
 
@@ -890,6 +944,9 @@ fn u8_add(first: u8, second: u8) -> AluResult<u8> {
     chc
 }
 
+/// Helper function.
+///
+/// Returns an `AluResult` of the addition of two `u16`s.
 fn u16_add(first: u16, second: u16) -> AluResult<u16> {
     let mut chc = AluResult::default();
 
@@ -908,6 +965,9 @@ fn u16_add(first: u16, second: u16) -> AluResult<u16> {
     chc
 }
 
+/// Helper function.
+///
+/// Returns an `AluResult` of the subtraction of two `u8`s.
 fn u8_sub(first: u8, second: u8) -> AluResult<u8> {
     let mut chc = AluResult::default();
 
@@ -928,6 +988,9 @@ fn u8_sub(first: u8, second: u8) -> AluResult<u8> {
     chc
 }
 
+/// Helper function.
+///
+/// Returns an `AluResult` of the subtraction of two `u16`s.
 fn u16_sub(first: u16, second: u16) -> AluResult<u16> {
     let mut chc = AluResult::default();
 
@@ -948,6 +1011,9 @@ fn u16_sub(first: u16, second: u16) -> AluResult<u16> {
     chc
 }
 
+/// Helper function.
+///
+/// Returns an `AluResult` of the addition of two `i16`s.
 fn i16_add(first: i16, second: i16) -> AluResult<i16> {
     let mut chc = AluResult::default();
 
