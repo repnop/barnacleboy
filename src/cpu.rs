@@ -348,37 +348,7 @@ fn stop(_: &mut SharpLR35902, _: u8) -> SharpResult {
     Ok(())
 }
 
-/// Reads a 16-bit value at the PC into the `BC` register.
-///
-/// Flags affected: none
-fn ld_bc_d16(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
-    cpu.registers.as_dwords().bc = cpu.read_instruction_word()?;
-    Ok(())
-}
-
-/// Reads a 16-bit value at the PC into the `DE` register.
-///
-/// Flags affected: none
-fn ld_de_d16(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
-    cpu.registers.as_dwords().de = cpu.read_instruction_word()?;
-    Ok(())
-}
-
-/// Reads a 16-bit value at the PC into the `HL` register.
-///
-/// Flags affected: none
-fn ld_hl_d16(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
-    cpu.registers.as_dwords().hl = cpu.read_instruction_word()?;
-    Ok(())
-}
-
-/// Reads a 16-bit value at the PC into the `SP` register.
-///
-/// Flags affected: none
-fn ld_sp_d16(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
-    cpu.registers.as_dwords().sp = cpu.read_instruction_word()?;
-    Ok(())
-}
+// BEGIN 8-BIT TRANSFER INSTRUCTIONS
 
 /// Loads the value of register `A` into the memory address pointed to by
 /// register `BC`.
@@ -430,8 +400,8 @@ fn ld_at_hld_a(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
     Ok(())
 }
 
-/// Loads the value of register `A` into the memory address pointed to by
-/// register `HL` then increments `HL`.
+/// Loads the value of the memory address pointed to by register `HL` into
+/// register `A` into then increments `HL`.
 ///
 /// Flags affected: none
 fn ld_a_at_hli(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
@@ -441,8 +411,8 @@ fn ld_a_at_hli(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
     Ok(())
 }
 
-/// Loads the value of register `A` into the memory address pointed to by
-/// register `HL` then decrements `HL`.
+/// Loads the value of the memory address pointed to by register `HL` into
+/// register `A` into then decrements `HL`.
 ///
 /// Flags affected: none
 fn ld_a_at_hld(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
@@ -604,6 +574,261 @@ fn ld_r_r(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
     Ok(())
 }
 
+// BEGIN 16-BIT TRANSFER INSTRUCTIONS
+
+/// Loads a 16-bit immediate value into the register pair `rr`.
+///
+/// Flags affected: none
+fn ld_rr_nn(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let bits = OpcodeBits::from(opcode);
+    let data = cpu.read_instruction_word()?;
+
+    if bits.p != 0x03 {
+        cpu.registers.as_dwords()[bits.p] = data;
+    } else {
+        cpu.registers.sp = data;
+    }
+
+    Ok(())
+}
+
+/// Loads the contents of register `HL` into the stack pointer (`SP`).
+///
+/// Flags affected: none
+fn ld_sp_hl(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
+    let hl = cpu.registers.as_dwords().hl;
+
+    cpu.registers.sp = hl;
+
+    Ok(())
+}
+
+/// Pushes the value of a register pair `rr` onto the stack and subtracts the
+/// stack pointer (`SP`) by 2.
+///
+/// Flags affected: none
+fn push_rr(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let bits = OpcodeBits::from(opcode);
+
+    let d16 = cpu.registers.as_dwords()[bits.p];
+    let sp = cpu.registers.sp;
+
+    cpu.write(sp - 1, (d16 >> 8) as u8)?;
+    cpu.write(sp - 2, (d16 & 0x00FF) as u8)?;
+    cpu.registers.sp -= 2;
+
+    Ok(())
+}
+
+/// Pops a 16-bit value off of the stack into a register pair `rr` and adds 2 to
+/// the stack pointer (`SP`).
+///
+/// Flags affected: none
+fn pop_rr(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let bits = OpcodeBits::from(opcode);
+    let sp = cpu.registers.sp;
+
+    let d16 = cpu.read(sp)? as u16 | (cpu.read(sp + 1)? as u16) << 8;
+    cpu.registers.sp += 2;
+
+    cpu.registers.as_dwords()[bits.p] = d16;
+
+    Ok(())
+}
+
+/// Adds an immediate 8-bit signed integer to the stack pointer (`SP`) and
+/// places the result into register pair `HL`.
+///
+/// Flags affected: C - *, H - *, S - 0, Z - 0
+fn ldhl_sp_e(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
+    let e = cpu.read_instruction_byte()? as i8 as i16;
+    let sp = cpu.registers.sp as i16;
+
+    let result = i16_add(sp, e);
+
+    cpu.registers.as_dwords().hl = result.result as u16;
+
+    if result.carry {
+        cpu.registers.set_c();
+    }
+
+    if result.half_carry {
+        cpu.registers.set_h();
+    }
+
+    cpu.registers.clear_s();
+    cpu.registers.clear_z();
+
+    Ok(())
+}
+
+/// Stores the value of the stack pointer `SP` into the immediate 16-bit
+/// address.
+///
+/// Flags affected: none
+fn ld_d16_sp(cpu: &mut SharpLR35902, _: u8) -> SharpResult {
+    let d16 = cpu.read_instruction_byte()? as u16 | (cpu.read_instruction_byte()? as u16) << 8;
+    let sp = cpu.registers.sp;
+
+    cpu.write(d16, (sp & 0x00FF) as u8)?;
+    cpu.write(d16 + 1, (sp >> 8) as u8)?;
+
+    Ok(())
+}
+
+// BEGIN 8-BIT ARITHMETIC AND LOGIC OPERATIONS
+
+fn add_a_r(cpu: &mut SharpLR35902, opcode: u8) -> SharpResult {
+    let bits = OpcodeBits::from(opcode);
+
+    let (result, flags) = if bits.z != 0b110 {
+        u8_add(cpu.registers.a, cpu.registers[bits.z]).into_parts()
+    } else {
+        let second = cpu.read_hl()?;
+        u8_add(cpu.registers.a, second).into_parts()
+    };
+
+    cpu.registers.a = result;
+    cpu.registers.f = flags;
+
+    Ok(())
+}
+
+// BEGIN HELPER FUNCTIONS
+#[derive(Debug, Default, PartialEq)]
+struct AluResult<T: Default> {
+    result: T,
+    zero: bool,
+    carry: bool,
+    half_carry: bool,
+    subtract: bool,
+}
+
+impl<T: Default> AluResult<T> {
+    fn into_parts(self) -> (T, u8) {
+        let res = self.result;
+        let flags = {
+            let mut f = 0u8;
+
+            if self.zero {
+                f |= F_ZERO;
+            }
+
+            if self.half_carry {
+                f |= F_HALFCARRY;
+            }
+
+            if self.carry {
+                f |= F_CARRY;
+            }
+
+            if self.subtract {
+                f | F_SUBTRACT;
+            }
+
+            f
+        };
+
+        (res, flags)
+    }
+}
+
+fn u8_add(first: u8, second: u8) -> AluResult<u8> {
+    let mut chc = AluResult::default();
+
+    let (res, cry) = first.overflowing_add(second);
+    chc.result = res;
+    chc.carry = cry;
+
+    if chc.result == 0 {
+        chc.zero = true;
+    }
+
+    if (first & 0x0F) + (second & 0x0F) > 0x0F {
+        chc.half_carry = true;
+    }
+
+    chc
+}
+
+fn u16_add(first: u16, second: u16) -> AluResult<u16> {
+    let mut chc = AluResult::default();
+
+    let (res, cry) = first.overflowing_add(second);
+    chc.result = res;
+    chc.carry = cry;
+
+    if chc.result == 0 {
+        chc.zero = true;
+    }
+
+    if (first & 0xFFF) + (second & 0xFFF) > 0xFFF {
+        chc.half_carry = true;
+    }
+
+    chc
+}
+
+fn u8_sub(first: u8, second: u8) -> AluResult<u8> {
+    let mut chc = AluResult::default();
+
+    let (res, cry) = first.overflowing_sub(second);
+    chc.result = res;
+    chc.carry = cry;
+
+    if chc.result == 0 {
+        chc.zero = true;
+    }
+
+    if (first & 0x0F) < (second & 0x0F) {
+        chc.half_carry = true;
+    }
+
+    chc.subtract = true;
+
+    chc
+}
+
+fn u16_sub(first: u16, second: u16) -> AluResult<u16> {
+    let mut chc = AluResult::default();
+
+    let (res, cry) = first.overflowing_sub(second);
+    chc.result = res;
+    chc.carry = cry;
+
+    if chc.result == 0 {
+        chc.zero = true;
+    }
+
+    if (first & 0xFFF) < (second & 0xFFF) {
+        chc.half_carry = true;
+    }
+
+    chc.subtract = true;
+
+    chc
+}
+
+fn i16_add(first: i16, second: i16) -> AluResult<i16> {
+    let mut chc = AluResult::default();
+
+    let (res, cry) = first.overflowing_add(second);
+    chc.result = res;
+    chc.carry = cry;
+
+    if chc.result == 0 {
+        chc.zero = true;
+    }
+
+    if (first & 0xFFF) + (second & 0xFFF) > 0xFFF {
+        chc.half_carry = true;
+    }
+
+    chc.subtract = false;
+
+    chc
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -688,42 +913,6 @@ mod tests {
     }
 
     #[test]
-    fn ld_bc_d16() {
-        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
-        cpu.write(0x00, 0x00);
-        cpu.write(0x01, 0xFF);
-        assert!(super::ld_bc_d16(&mut cpu, 0x01).is_ok());
-        assert_eq!(cpu.registers.as_dwords().bc, 0xFF00);
-    }
-
-    #[test]
-    fn ld_de_d16() {
-        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
-        cpu.write(0x00, 0x00);
-        cpu.write(0x01, 0xFF);
-        assert!(super::ld_de_d16(&mut cpu, 0x11).is_ok());
-        assert_eq!(cpu.registers.as_dwords().de, 0xFF00);
-    }
-
-    #[test]
-    fn ld_hl_d16() {
-        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
-        cpu.write(0x00, 0x00);
-        cpu.write(0x01, 0xFF);
-        assert!(super::ld_hl_d16(&mut cpu, 0x21).is_ok());
-        assert_eq!(cpu.registers.as_dwords().hl, 0xFF00);
-    }
-
-    #[test]
-    fn ld_sp_d16() {
-        let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
-        cpu.write(0x00, 0x00);
-        cpu.write(0x01, 0xFF);
-        assert!(super::ld_sp_d16(&mut cpu, 0x31).is_ok());
-        assert_eq!(cpu.registers.as_dwords().sp, 0xFF00);
-    }
-
-    #[test]
     fn ld_at_bc_a() {
         let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
         cpu.registers.a = 0xFF;
@@ -766,7 +955,7 @@ mod tests {
         let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
 
         for i in 0u8..8u8 {
-            cpu.write(i as u16, i + 1);
+            cpu.write(i as u16, i + 1).unwrap();
         }
 
         assert!(super::ld_r_d8(&mut cpu, 0x06).is_ok());
@@ -799,7 +988,7 @@ mod tests {
     fn ld_r_at_hl() {
         let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
 
-        cpu.write(0x0000, 0xFF);
+        cpu.write(0x0000, 0xFF).unwrap();
 
         assert!(super::ld_r_at_hl(&mut cpu, 0x46).is_ok());
         assert_eq!(cpu.registers.b, 0xFF);
@@ -865,9 +1054,102 @@ mod tests {
         let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
 
         cpu.registers.as_dwords().hl = 0x0011;
-        cpu.write(0x00, 0xFF);
+        cpu.write(0x00, 0xFF).unwrap();
 
         assert!(super::ld_at_hl_d8(&mut cpu, 0x36).is_ok());
         assert_eq!(cpu.read_hl().unwrap(), 0xFF);
+    }
+
+    #[test]
+    fn helper_tests() {
+        let result = AluResult {
+            result: 0xFFu8,
+            zero: false,
+            carry: false,
+            half_carry: false,
+            subtract: false,
+        };
+        assert_eq!(u8_add(0xF0, 0x0F), result);
+
+        let result = AluResult {
+            result: 0x10u8,
+            zero: false,
+            carry: false,
+            half_carry: true,
+            subtract: false,
+        };
+        assert_eq!(u8_add(0x0F, 0x01), result);
+
+        let result = AluResult {
+            result: 0x00u8,
+            zero: true,
+            carry: true,
+            half_carry: true,
+            subtract: false,
+        };
+        assert_eq!(u8_add(0xFF, 0x01), result);
+
+        let result = AluResult {
+            result: 0xEFu8,
+            zero: false,
+            carry: false,
+            half_carry: true,
+            subtract: true,
+        };
+        assert_eq!(u8_sub(0xF0, 0x01), result);
+
+        let result = AluResult {
+            result: 0xFFu8,
+            zero: false,
+            carry: true,
+            half_carry: true,
+            subtract: true,
+        };
+        assert_eq!(u8_sub(0x00, 0x01), result);
+
+        let result = AluResult {
+            result: 0xFFFFu16,
+            zero: false,
+            carry: false,
+            half_carry: false,
+            subtract: false,
+        };
+        assert_eq!(u16_add(0xFF00, 0x00FF), result);
+
+        let result = AluResult {
+            result: 0x1000u16,
+            zero: false,
+            carry: false,
+            half_carry: true,
+            subtract: false,
+        };
+        assert_eq!(u16_add(0x0FFF, 0x0001), result);
+
+        let result = AluResult {
+            result: 0x00u16,
+            zero: true,
+            carry: true,
+            half_carry: true,
+            subtract: false,
+        };
+        assert_eq!(u16_add(0xFFFF, 0x0001), result);
+
+        let result = AluResult {
+            result: 0xEF00u16,
+            zero: false,
+            carry: false,
+            half_carry: true,
+            subtract: true,
+        };
+        assert_eq!(u16_sub(0xFEFF, 0x0FFF), result);
+
+        let result = AluResult {
+            result: 0xFFFFu16,
+            zero: false,
+            carry: true,
+            half_carry: true,
+            subtract: true,
+        };
+        assert_eq!(u16_sub(0x0000, 0x0001), result);
     }
 }
