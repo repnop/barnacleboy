@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use cpu::{self, *};
 
     #[derive(Debug, Default)]
     struct DummyMemInterface {
@@ -86,7 +86,7 @@ mod tests {
         let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
         cpu.registers.a = 0xFF;
         cpu.registers.as_dwords().bc = 0x01;
-        assert!(super::ld_at_bc_a(&mut cpu, 0x02).is_ok());
+        assert!(cpu::ld_at_bc_a(&mut cpu, 0x02).is_ok());
         assert_eq!(cpu.read(0x01).unwrap(), 0xFF);
     }
 
@@ -95,7 +95,7 @@ mod tests {
         let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
         cpu.registers.a = 0xFF;
         cpu.registers.as_dwords().de = 0x01;
-        assert!(super::ld_at_de_a(&mut cpu, 0x12).is_ok());
+        assert!(cpu::ld_at_de_a(&mut cpu, 0x12).is_ok());
         assert_eq!(cpu.read(0x01).unwrap(), 0xFF);
     }
 
@@ -104,7 +104,7 @@ mod tests {
         let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
         cpu.registers.a = 0xFF;
         cpu.registers.as_dwords().hl = 0x01;
-        assert!(super::ld_at_hli_a(&mut cpu, 0x22).is_ok());
+        assert!(cpu::ld_at_hli_a(&mut cpu, 0x22).is_ok());
         assert_eq!(cpu.read(0x01).unwrap(), 0xFF);
         assert_eq!(cpu.registers.as_dwords().hl, 0x02);
     }
@@ -114,7 +114,7 @@ mod tests {
         let mut cpu = SharpLR35902::new(Rc::new(RefCell::new(DummyMemInterface::default())));
         cpu.registers.a = 0xFF;
         cpu.registers.as_dwords().hl = 0x01;
-        assert!(super::ld_at_hld_a(&mut cpu, 0x22).is_ok());
+        assert!(cpu::ld_at_hld_a(&mut cpu, 0x22).is_ok());
         assert_eq!(cpu.read(0x01).unwrap(), 0xFF);
         assert_eq!(cpu.registers.as_dwords().hl, 0x00);
     }
@@ -127,29 +127,29 @@ mod tests {
             cpu.write(i as u16, i + 1).unwrap();
         }
 
-        assert!(super::ld_r_d8(&mut cpu, 0x06).is_ok());
+        assert!(cpu::ld_r_d8(&mut cpu, 0x06).is_ok());
         assert_eq!(cpu.registers.b, 0x01);
 
-        assert!(super::ld_r_d8(&mut cpu, 0x0E).is_ok());
+        assert!(cpu::ld_r_d8(&mut cpu, 0x0E).is_ok());
         assert_eq!(cpu.registers.c, 0x02);
 
-        assert!(super::ld_r_d8(&mut cpu, 0x16).is_ok());
+        assert!(cpu::ld_r_d8(&mut cpu, 0x16).is_ok());
         assert_eq!(cpu.registers.d, 0x03);
 
-        assert!(super::ld_r_d8(&mut cpu, 0x1E).is_ok());
+        assert!(cpu::ld_r_d8(&mut cpu, 0x1E).is_ok());
         assert_eq!(cpu.registers.e, 0x04);
 
-        assert!(super::ld_r_d8(&mut cpu, 0x26).is_ok());
+        assert!(cpu::ld_r_d8(&mut cpu, 0x26).is_ok());
         assert_eq!(cpu.registers.h, 0x05);
 
-        assert!(super::ld_r_d8(&mut cpu, 0x2E).is_ok());
+        assert!(cpu::ld_r_d8(&mut cpu, 0x2E).is_ok());
         assert_eq!(cpu.registers.l, 0x06);
 
         cpu.registers.as_dwords().hl = 0x0000;
-        assert!(super::ld_r_d8(&mut cpu, 0x36).is_ok());
+        assert!(cpu::ld_r_d8(&mut cpu, 0x36).is_ok());
         assert_eq!(cpu.read_hl().unwrap(), 0x07);
 
-        assert!(super::ld_r_d8(&mut cpu, 0x3E).is_ok());
+        assert!(cpu::ld_r_d8(&mut cpu, 0x3E).is_ok());
         assert_eq!(cpu.registers.a, 0x08);
     }
 
@@ -159,28 +159,28 @@ mod tests {
 
         cpu.write(0x0000, 0xFF).unwrap();
 
-        assert!(super::ld_r_at_hl(&mut cpu, 0x46).is_ok());
+        assert!(cpu::ld_r_at_hl(&mut cpu, 0x46).is_ok());
         assert_eq!(cpu.registers.b, 0xFF);
 
-        assert!(super::ld_r_at_hl(&mut cpu, 0x4E).is_ok());
+        assert!(cpu::ld_r_at_hl(&mut cpu, 0x4E).is_ok());
         assert_eq!(cpu.registers.c, 0xFF);
 
-        assert!(super::ld_r_at_hl(&mut cpu, 0x56).is_ok());
+        assert!(cpu::ld_r_at_hl(&mut cpu, 0x56).is_ok());
         assert_eq!(cpu.registers.d, 0xFF);
 
-        assert!(super::ld_r_at_hl(&mut cpu, 0x5E).is_ok());
+        assert!(cpu::ld_r_at_hl(&mut cpu, 0x5E).is_ok());
         assert_eq!(cpu.registers.e, 0xFF);
 
-        assert!(super::ld_r_at_hl(&mut cpu, 0x66).is_ok());
+        assert!(cpu::ld_r_at_hl(&mut cpu, 0x66).is_ok());
         assert_eq!(cpu.registers.h, 0xFF);
 
         cpu.registers.h = 0x00;
-        assert!(super::ld_r_at_hl(&mut cpu, 0x6E).is_ok());
+        assert!(cpu::ld_r_at_hl(&mut cpu, 0x6E).is_ok());
         assert_eq!(cpu.registers.l, 0xFF);
 
         // 0x76 is the instruction `HALT`
         cpu.registers.l = 0x00;
-        assert!(super::ld_r_at_hl(&mut cpu, 0x7E).is_ok());
+        assert!(cpu::ld_r_at_hl(&mut cpu, 0x7E).is_ok());
         assert_eq!(cpu.registers.a, 0xFF);
     }
 
@@ -195,26 +195,26 @@ mod tests {
         cpu.registers.e = 0x04;
         cpu.registers.a = 0x05;
 
-        assert!(super::ld_at_hl_r(&mut cpu, 0x70).is_ok());
+        assert!(cpu::ld_at_hl_r(&mut cpu, 0x70).is_ok());
         assert_eq!(cpu.read_hl().unwrap(), 0x01);
 
-        assert!(super::ld_at_hl_r(&mut cpu, 0x71).is_ok());
+        assert!(cpu::ld_at_hl_r(&mut cpu, 0x71).is_ok());
         assert_eq!(cpu.read_hl().unwrap(), 0x02);
 
-        assert!(super::ld_at_hl_r(&mut cpu, 0x72).is_ok());
+        assert!(cpu::ld_at_hl_r(&mut cpu, 0x72).is_ok());
         assert_eq!(cpu.read_hl().unwrap(), 0x03);
 
-        assert!(super::ld_at_hl_r(&mut cpu, 0x73).is_ok());
+        assert!(cpu::ld_at_hl_r(&mut cpu, 0x73).is_ok());
         assert_eq!(cpu.read_hl().unwrap(), 0x04);
 
-        assert!(super::ld_at_hl_r(&mut cpu, 0x74).is_ok());
+        assert!(cpu::ld_at_hl_r(&mut cpu, 0x74).is_ok());
         assert_eq!(cpu.read_hl().unwrap(), 0x00);
 
-        assert!(super::ld_at_hl_r(&mut cpu, 0x75).is_ok());
+        assert!(cpu::ld_at_hl_r(&mut cpu, 0x75).is_ok());
         assert_eq!(cpu.read_hl().unwrap(), 0x11);
 
         // 0x76 is the instruction `HALT`
-        assert!(super::ld_at_hl_r(&mut cpu, 0x77).is_ok());
+        assert!(cpu::ld_at_hl_r(&mut cpu, 0x77).is_ok());
         assert_eq!(cpu.read_hl().unwrap(), 0x05);
     }
 
@@ -225,7 +225,7 @@ mod tests {
         cpu.registers.as_dwords().hl = 0x0011;
         cpu.write(0x00, 0xFF).unwrap();
 
-        assert!(super::ld_at_hl_d8(&mut cpu, 0x36).is_ok());
+        assert!(cpu::ld_at_hl_d8(&mut cpu, 0x36).is_ok());
         assert_eq!(cpu.read_hl().unwrap(), 0xFF);
     }
 
@@ -236,7 +236,7 @@ mod tests {
         cpu.write(0x0A, 0xFF).unwrap();
         cpu.registers.as_dwords().bc = 0x0A;
 
-        assert!(super::ld_a_at_bc(&mut cpu, 0x0A).is_ok());
+        assert!(cpu::ld_a_at_bc(&mut cpu, 0x0A).is_ok());
         assert_eq!(cpu.registers.a, 0xFF);
     }
 
