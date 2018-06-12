@@ -133,7 +133,7 @@ impl MemoryInterface for RomOnly {
             0xA000...0xBFFF => if let Some(ram) = &self.ram {
                 ram.get(address)
             } else {
-                Err(LRError::InvalidMemoryRead(address))
+                Err(LRError::RamDisabled(address))
             },
             _ => self.shared_mem.get(address),
         }
@@ -145,7 +145,7 @@ impl MemoryInterface for RomOnly {
             0xA000...0xBFFF => if let Some(ram) = &mut self.ram {
                 ram.set(address, data)
             } else {
-                Err(LRError::InvalidMemoryWrite(address))
+                Err(LRError::RamDisabled(address))
             },
             _ => self.shared_mem.set(address, data),
         }
@@ -203,7 +203,7 @@ impl MemoryInterface for Mbc1 {
             0xA000...0xBFFF => if self.ram_enabled {
                 self.ram_banks[self.ram_bank_select].get(address)
             } else {
-                Err(LRError::InvalidMemoryRead(address))
+                Err(LRError::RamDisabled(address))
             },
             _ => self.shared_mem.get(address),
         }
@@ -262,7 +262,7 @@ impl MemoryInterface for Mbc1 {
                 if self.ram_enabled {
                     self.ram_banks[self.ram_bank_select].set(address, data)
                 } else {
-                    Err(LRError::InvalidMemoryWrite(address))
+                    Err(LRError::RamDisabled(address))
                 }
             }
             _ => self.shared_mem.set(address, data),
@@ -311,7 +311,7 @@ impl MemoryInterface for Mbc2 {
             0xA000...0xA1FF => if self.ram_enabled {
                 self.internal_ram.get(address)
             } else {
-                Err(LRError::InvalidMemoryRead(address))
+                Err(LRError::RamDisabled(address))
             },
             _ => self.shared_mem.get(address),
         }
@@ -346,7 +346,7 @@ impl MemoryInterface for Mbc2 {
             0xA000...0xA1FF => if self.ram_enabled {
                 self.internal_ram.set(address, data & 0x0F)
             } else {
-                Err(LRError::InvalidMemoryWrite(address))
+                Err(LRError::RamDisabled(address))
             },
             _ => self.shared_mem.set(address, data),
         }

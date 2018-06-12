@@ -251,6 +251,9 @@ impl ::std::ops::IndexMut<u8> for DWordRegisters {
 pub enum LRError {
     InvalidMemoryRead(u16),
     InvalidMemoryWrite(u16),
+    RamDisabled(u16),
+    InvalidBankRead(u16, usize),
+    InvalidBankWrite(u16, usize),
 }
 
 impl ::std::fmt::Display for LRError {
@@ -259,8 +262,17 @@ impl ::std::fmt::Display for LRError {
             f,
             "{}",
             match self {
-                LRError::InvalidMemoryRead(addr) => format!("Invalid memory read at {:X}", addr),
-                LRError::InvalidMemoryWrite(addr) => format!("Invalid memory write at {:X}", addr),
+                LRError::InvalidMemoryRead(addr) => format!("Invalid memory read at {:#X}", addr),
+                LRError::InvalidMemoryWrite(addr) => format!("Invalid memory write at {:#X}", addr),
+                LRError::RamDisabled(addr) => {
+                    format!("Attempted read/write at {:#X} while RAM disabled", addr)
+                }
+                LRError::InvalidBankRead(addr, bankno) => {
+                    format!("Invalid memory read at {:#X} bank no. {}", addr, bankno)
+                }
+                LRError::InvalidBankWrite(addr, bankno) => {
+                    format!("Invalid memory write at {:#X} bank no. {}", addr, bankno)
+                }
             }
         )
     }
@@ -271,6 +283,9 @@ impl ::std::error::Error for LRError {
         match self {
             LRError::InvalidMemoryRead(_) => "Invalid memory read",
             LRError::InvalidMemoryWrite(_) => "Invalid memory write",
+            LRError::RamDisabled(_) => "Attempted read/write while RAM is disabled",
+            LRError::InvalidBankRead(_, _) => "Invalid bank memory read",
+            LRError::InvalidBankWrite(_, _) => "Invalid bank memory write",
         }
     }
 }
