@@ -9,6 +9,7 @@ pub trait MemoryInterface {
     fn write(&mut self, address: Self::Index, data: Self::Word) -> Result<(), Self::Error>;
 }
 
+#[derive(Debug, Clone)]
 pub struct MemoryRegion {
     data: Box<[u8]>,
     start: usize,
@@ -44,6 +45,7 @@ impl MemoryRegion {
 }
 
 /// Areas of the memory map that are static between different memory controllers.
+#[derive(Debug, Clone)]
 pub struct SharedMemoryRegions {
     video_ram: MemoryRegion,
     work_ram_0: MemoryRegion,
@@ -106,6 +108,7 @@ impl SharedMemoryRegions {
 
 /// ROM only. Contains 32KiB of ROM mapped to 0x0000 to 0x7FFF, with an optional
 /// 8KiB of RAM mapped at 0xA000-0xBFFF.
+#[derive(Debug, Clone)]
 pub struct RomOnly {
     rom: MemoryRegion,
     ram: Option<MemoryRegion>,
@@ -152,11 +155,13 @@ impl MemoryInterface for RomOnly {
     }
 }
 
+#[derive(Debug, Clone)]
 enum ModeSelect {
     Rom,
     Ram,
 }
 
+#[derive(Debug, Clone)]
 pub struct Mbc1 {
     rom_banks: Vec<MemoryRegion>,
     rom_bank_select: usize,
@@ -219,7 +224,7 @@ impl MemoryInterface for Mbc1 {
                 Ok(())
             },
             0x2000...0x3FFF => {
-                let select = (data & 0b11111) as usize;
+                let mut select = (data & 0b11111) as usize;
 
                 if select == 0 {
                     select = 1;
@@ -270,6 +275,7 @@ impl MemoryInterface for Mbc1 {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Mbc2 {
     rom_banks: Vec<MemoryRegion>,
     rom_bank_select: usize,
@@ -319,7 +325,7 @@ impl MemoryInterface for Mbc2 {
 
     fn write(&mut self, address: Self::Index, data: Self::Word) -> Result<(), Self::Error> {
         match address {
-            0x0000...0x1FFF => if (data & 0x01FF) >> 8 == 0 {
+            0x0000...0x1FFF => if (data & 0x1F) == 0 {
                 if data & 0b1111 == 0xA {
                     self.ram_enabled = true;
                     Ok(())
@@ -330,8 +336,8 @@ impl MemoryInterface for Mbc2 {
             } else {
                 Ok(())
             },
-            0x2000...0x3FFF => if (data & 0x01FF) >> 8 == 1 {
-                let select = (data & 0b1111) as usize;
+            0x2000...0x3FFF => if (data & 0x1F) == 1 {
+                let mut select = (data & 0b1111) as usize;
 
                 if select == 0 {
                     select = 1;
