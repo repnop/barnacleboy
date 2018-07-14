@@ -1,13 +1,14 @@
-use std::{fs, io::Read, path::Path};
+use std::{fs, path::Path};
 
 #[derive(Debug)]
 pub struct GameBoyCartridge {
-    header: CartridgeHeader,
+    pub header: CartridgeHeader,
+    pub contents: Vec<u8>,
 }
 
 impl GameBoyCartridge {
     pub fn from_file(file: impl AsRef<Path>) -> Result<GameBoyCartridge, Box<::std::error::Error>> {
-        const BANK_SIZE: usize = 8 * 1024;
+        const BANK_SIZE: usize = 16 * 1024;
 
         let bytes = fs::read(file)?;
 
@@ -38,9 +39,9 @@ impl GameBoyCartridge {
 
         let ram_size = match bytes[0x149] {
             0x00 => None,
-            0x01 => Some(2 * 1024),
-            0x02 => Some(8 * 1024),
-            0x03 => Some(32 * 1024),
+            0x01 => Some((2 * 1024, 1)),
+            0x02 => Some((8 * 1024, 1)),
+            0x03 => Some((32 * 1024, 4)),
             _ => panic!("Unknown RAM size"),
         };
 
@@ -72,23 +73,24 @@ impl GameBoyCartridge {
                 header_checksum,
                 global_checksum,
             },
+            contents: bytes,
         })
     }
 }
 
 #[derive(Debug)]
 pub struct CartridgeHeader {
-    title: String,
-    new_licensee_code: [char; 2],
-    sgb_support: bool,
-    bank_type: MemoryBankType,
-    rom_size: usize,
-    ram_size: Option<usize>,
-    destination: Destination,
-    old_licensee_code: u8,
-    version_number: u8,
-    header_checksum: u8,
-    global_checksum: u16,
+    pub title: String,
+    pub new_licensee_code: [char; 2],
+    pub sgb_support: bool,
+    pub bank_type: MemoryBankType,
+    pub rom_size: usize,
+    pub ram_size: Option<(usize, usize)>,
+    pub destination: Destination,
+    pub old_licensee_code: u8,
+    pub version_number: u8,
+    pub header_checksum: u8,
+    pub global_checksum: u16,
 }
 
 #[derive(Debug)]

@@ -4,3 +4,6 @@ version = "0.1.0"
 authors = ["rep-nop <repnop@outlook.com>"]
 
 [dependencies]
+
+[profile.dev]
+overflow-checks = false

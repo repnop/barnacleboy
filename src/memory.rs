@@ -1,4 +1,5 @@
 use cpu::LRError;
+use rom::GameBoyCartridge;
 
 pub trait MemoryInterface {
     type Word;
@@ -18,10 +19,21 @@ pub struct MemoryRegion {
 
 impl MemoryRegion {
     pub fn new(start: usize, end: usize) -> MemoryRegion {
-        assert!(start > end);
+        assert!(start < end);
 
         MemoryRegion {
             data: vec![0; end - start + 1].into_boxed_slice(),
+            start,
+            end,
+        }
+    }
+
+    pub fn from_data(start: usize, end: usize, data: &[u8]) -> MemoryRegion {
+        let len = end - start + 1;
+        assert!(len <= data.len());
+
+        MemoryRegion {
+            data: data[..len].into(),
             start,
             end,
         }
@@ -186,7 +198,44 @@ impl Mbc1 {
                 v
             },
             rom_bank_select: 1,
-            ram_banks: vec![MemoryRegion::new(0xA000, 0xBFFF); num_ram_banks],
+            ram_banks: vec![MemoryRegion::new(0xA000, 0xA000 + ram_size - 1); num_ram_banks],
+            ram_bank_select: 0,
+            shared_mem: SharedMemoryRegions::new(),
+            ram_enabled: false,
+            mode: ModeSelect::Rom,
+        }
+    }
+
+    pub fn from_rom(cartridge: GameBoyCartridge) -> Mbc1 {
+        let (ram_size, ram_banks) = if let Some(s) = cartridge.header.ram_size {
+            s
+        } else {
+            (0, 0)
+        };
+
+        let num_rom_banks = cartridge.header.rom_size / (16 * 1024);
+
+        Mbc1 {
+            rom_banks: {
+                let mut v = Vec::with_capacity(num_rom_banks);
+                v.push(MemoryRegion::from_data(0x0000, 0x3FFF, &cartridge.contents));
+
+                for i in 1..num_rom_banks {
+                    v.push(MemoryRegion::from_data(
+                        0x4000,
+                        0x7FFF,
+                        &cartridge.contents[i * 16 * 1024..],
+                    ));
+                }
+
+                v
+            },
+            rom_bank_select: 1,
+            ram_banks: if ram_size > 0 {
+                vec![MemoryRegion::new(0xA000, 0xA000 + ram_size - 1); ram_banks]
+            } else {
+                Vec::new()
+            },
             ram_bank_select: 0,
             shared_mem: SharedMemoryRegions::new(),
             ram_enabled: false,
