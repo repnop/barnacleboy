@@ -14,7 +14,7 @@ pub const F_HALFCARRY: u8 = 0b0010_0000;
 /// Carry flag.
 pub const F_CARRY: u8 = 0b0001_0000;
 
-type MemoryController<'a> = &'a mut dyn MemoryInterface<Word = u8, Index = u16, Error = LRError>;
+type MemoryController<'a> = &'a mut dyn MemoryInterface<Word = u8, Index = u16>;
 type SharpResult = Result<(), LRError>;
 /// The original Sharp LR35902 processor, a 8080/Z80 derivative with some
 /// interesting changes. Most notably, removal of the shadow register set along
@@ -244,6 +244,20 @@ pub enum LRError {
     RamDisabled(u16),
     InvalidBankRead(u16, usize),
     InvalidBankWrite(u16, usize),
+}
+
+impl From<crate::memory::MemoryError> for LRError {
+    fn from(me: crate::memory::MemoryError) -> LRError {
+        use crate::memory::MemoryError::*;
+
+        match me {
+            InvalidMemoryRead(addr) => LRError::InvalidMemoryRead(addr),
+            InvalidMemoryWrite(addr) => LRError::InvalidMemoryWrite(addr),
+            RamDisabled(addr) => LRError::RamDisabled(addr),
+            InvalidBankRead(addr, bank) => LRError::InvalidBankRead(addr, bank),
+            InvalidBankWrite(addr, bank) => LRError::InvalidBankWrite(addr, bank),
+        }
+    }
 }
 
 impl ::std::fmt::Display for LRError {

@@ -1,13 +1,19 @@
-use cpu::LRError;
 use rom::GameBoyCartridge;
 
 pub trait MemoryInterface {
     type Word;
     type Index;
-    type Error;
 
-    fn read(&self, address: Self::Index) -> Result<Self::Word, Self::Error>;
-    fn write(&mut self, address: Self::Index, data: Self::Word) -> Result<(), Self::Error>;
+    fn read(&self, address: Self::Index) -> Result<Self::Word, MemoryError>;
+    fn write(&mut self, address: Self::Index, data: Self::Word) -> Result<(), MemoryError>;
+}
+
+pub enum MemoryError {
+    InvalidMemoryRead(u16),
+    InvalidMemoryWrite(u16),
+    RamDisabled(u16),
+    InvalidBankRead(u16, usize),
+    InvalidBankWrite(u16, usize),
 }
 
 #[derive(Debug, Clone)]
@@ -39,19 +45,19 @@ impl MemoryRegion {
         }
     }
 
-    pub fn get(&self, index: u16) -> Result<u8, LRError> {
+    pub fn get(&self, index: u16) -> Result<u8, MemoryError> {
         self.data
             .get(index as usize - self.start)
             .map(|&b| b)
-            .ok_or(LRError::InvalidMemoryRead(index))
+            .ok_or(MemoryError::InvalidMemoryRead(index))
     }
 
-    pub fn set(&mut self, index: u16, data: u8) -> Result<(), LRError> {
+    pub fn set(&mut self, index: u16, data: u8) -> Result<(), MemoryError> {
         if let Some(byte) = self.data.get_mut(index as usize - self.start) {
             *byte = data;
             Ok(())
         } else {
-            Err(LRError::InvalidMemoryWrite(index))
+            Err(MemoryError::InvalidMemoryWrite(index))
         }
     }
 }
@@ -79,7 +85,7 @@ impl SharedMemoryRegions {
         }
     }
 
-    pub fn get(&self, address: u16) -> Result<u8, LRError> {
+    pub fn get(&self, address: u16) -> Result<u8, MemoryError> {
         let addr = address as usize;
         if addr > self.video_ram.start && addr <= self.video_ram.end {
             self.video_ram.get(address)
@@ -94,11 +100,11 @@ impl SharedMemoryRegions {
         } else if addr > self.high_ram.start && addr <= self.high_ram.end {
             self.high_ram.get(address)
         } else {
-            Err(LRError::InvalidMemoryRead(address))
+            Err(MemoryError::InvalidMemoryRead(address))
         }
     }
 
-    pub fn set(&mut self, address: u16, data: u8) -> Result<(), LRError> {
+    pub fn set(&mut self, address: u16, data: u8) -> Result<(), MemoryError> {
         let addr = address as usize;
         if addr > self.video_ram.start && addr <= self.video_ram.end {
             self.video_ram.set(address, data)
@@ -113,7 +119,7 @@ impl SharedMemoryRegions {
         } else if addr > self.high_ram.start && addr <= self.high_ram.end {
             self.high_ram.set(address, data)
         } else {
-            Err(LRError::InvalidMemoryWrite(address))
+            Err(MemoryError::InvalidMemoryWrite(address))
         }
     }
 }
@@ -140,28 +146,31 @@ impl RomOnly {
 impl MemoryInterface for RomOnly {
     type Word = u8;
     type Index = u16;
-    type Error = LRError;
 
-    fn read(&self, address: Self::Index) -> Result<Self::Word, Self::Error> {
+    fn read(&self, address: Self::Index) -> Result<Self::Word, MemoryError> {
         match address {
             0x0000...0x7FFF => self.rom.get(address),
-            0xA000...0xBFFF => if let Some(ram) = &self.ram {
-                ram.get(address)
-            } else {
-                Err(LRError::RamDisabled(address))
-            },
+            0xA000...0xBFFF => {
+                if let Some(ram) = &self.ram {
+                    ram.get(address)
+                } else {
+                    Err(MemoryError::RamDisabled(address))
+                }
+            }
             _ => self.shared_mem.get(address),
         }
     }
 
-    fn write(&mut self, address: Self::Index, data: Self::Word) -> Result<(), Self::Error> {
+    fn write(&mut self, address: Self::Index, data: Self::Word) -> Result<(), MemoryError> {
         match address {
-            0x0000...0x7FFF => Err(LRError::InvalidMemoryWrite(address)),
-            0xA000...0xBFFF => if let Some(ram) = &mut self.ram {
-                ram.set(address, data)
-            } else {
-                Err(LRError::RamDisabled(address))
-            },
+            0x0000...0x7FFF => Err(MemoryError::InvalidMemoryWrite(address)),
+            0xA000...0xBFFF => {
+                if let Some(ram) = &mut self.ram {
+                    ram.set(address, data)
+                } else {
+                    Err(MemoryError::RamDisabled(address))
+                }
+            }
             _ => self.shared_mem.set(address, data),
         }
     }
@@ -248,30 +257,33 @@ impl Mbc1 {
 impl MemoryInterface for Mbc1 {
     type Word = u8;
     type Index = u16;
-    type Error = LRError;
 
-    fn read(&self, address: Self::Index) -> Result<Self::Word, Self::Error> {
+    fn read(&self, address: Self::Index) -> Result<Self::Word, MemoryError> {
         match address {
             0x0000...0x3FFF => self.rom_banks[0].get(address),
             0x4000...0x7FFF => self.rom_banks[self.rom_bank_select].get(address),
-            0xA000...0xBFFF => if self.ram_enabled {
-                self.ram_banks[self.ram_bank_select].get(address)
-            } else {
-                Err(LRError::RamDisabled(address))
-            },
+            0xA000...0xBFFF => {
+                if self.ram_enabled {
+                    self.ram_banks[self.ram_bank_select].get(address)
+                } else {
+                    Err(MemoryError::RamDisabled(address))
+                }
+            }
             _ => self.shared_mem.get(address),
         }
     }
 
-    fn write(&mut self, address: Self::Index, data: Self::Word) -> Result<(), Self::Error> {
+    fn write(&mut self, address: Self::Index, data: Self::Word) -> Result<(), MemoryError> {
         match address {
-            0x0000...0x1FFF => if data & 0b1111 == 0xA {
-                self.ram_enabled = true;
-                Ok(())
-            } else {
-                self.ram_enabled = false;
-                Ok(())
-            },
+            0x0000...0x1FFF => {
+                if data & 0b1111 == 0xA {
+                    self.ram_enabled = true;
+                    Ok(())
+                } else {
+                    self.ram_enabled = false;
+                    Ok(())
+                }
+            }
             0x2000...0x3FFF => {
                 let mut select = (data & 0b11111) as usize;
 
@@ -288,9 +300,10 @@ impl MemoryInterface for Mbc1 {
 
                 match self.mode {
                     ModeSelect::Rom => {
-                        self.rom_bank_select = (self.rom_bank_select & !0b1100000) | (select << 5);
+                        self.rom_bank_select = (self.rom_bank_select & !0b110_0000) | (select << 5);
 
-                        if self.rom_bank_select == 0x20 || self.rom_bank_select == 0x40
+                        if self.rom_bank_select == 0x20
+                            || self.rom_bank_select == 0x40
                             || self.rom_bank_select == 0x60
                         {
                             self.rom_bank_select += 1;
@@ -316,7 +329,7 @@ impl MemoryInterface for Mbc1 {
                 if self.ram_enabled {
                     self.ram_banks[self.ram_bank_select].set(address, data)
                 } else {
-                    Err(LRError::RamDisabled(address))
+                    Err(MemoryError::RamDisabled(address))
                 }
             }
             _ => self.shared_mem.set(address, data),
@@ -357,52 +370,59 @@ impl Mbc2 {
 impl MemoryInterface for Mbc2 {
     type Word = u8;
     type Index = u16;
-    type Error = LRError;
 
-    fn read(&self, address: Self::Index) -> Result<Self::Word, Self::Error> {
+    fn read(&self, address: Self::Index) -> Result<Self::Word, MemoryError> {
         match address {
             0x0000...0x3FFF => self.rom_banks[0].get(address),
             0x4000...0x7FFF => self.rom_banks[self.rom_bank_select].get(address),
-            0xA000...0xA1FF => if self.ram_enabled {
-                self.internal_ram.get(address)
-            } else {
-                Err(LRError::RamDisabled(address))
-            },
+            0xA000...0xA1FF => {
+                if self.ram_enabled {
+                    self.internal_ram.get(address)
+                } else {
+                    Err(MemoryError::RamDisabled(address))
+                }
+            }
             _ => self.shared_mem.get(address),
         }
     }
 
-    fn write(&mut self, address: Self::Index, data: Self::Word) -> Result<(), Self::Error> {
+    fn write(&mut self, address: Self::Index, data: Self::Word) -> Result<(), MemoryError> {
         match address {
-            0x0000...0x1FFF => if (data & 0x1F) == 0 {
-                if data & 0b1111 == 0xA {
-                    self.ram_enabled = true;
+            0x0000...0x1FFF => {
+                if (data & 0x1F) == 0 {
+                    if data & 0b1111 == 0xA {
+                        self.ram_enabled = true;
+                        Ok(())
+                    } else {
+                        self.ram_enabled = false;
+                        Ok(())
+                    }
+                } else {
+                    Ok(())
+                }
+            }
+            0x2000...0x3FFF => {
+                if (data & 0x1F) == 1 {
+                    let mut select = (data & 0b1111) as usize;
+
+                    if select == 0 {
+                        select = 1;
+                    }
+
+                    self.rom_bank_select = (self.rom_bank_select & !0b1111) | select;
+
                     Ok(())
                 } else {
-                    self.ram_enabled = false;
                     Ok(())
                 }
-            } else {
-                Ok(())
-            },
-            0x2000...0x3FFF => if (data & 0x1F) == 1 {
-                let mut select = (data & 0b1111) as usize;
-
-                if select == 0 {
-                    select = 1;
+            }
+            0xA000...0xA1FF => {
+                if self.ram_enabled {
+                    self.internal_ram.set(address, data & 0x0F)
+                } else {
+                    Err(MemoryError::RamDisabled(address))
                 }
-
-                self.rom_bank_select = (self.rom_bank_select & !0b1111) | select;
-
-                Ok(())
-            } else {
-                Ok(())
-            },
-            0xA000...0xA1FF => if self.ram_enabled {
-                self.internal_ram.set(address, data & 0x0F)
-            } else {
-                Err(LRError::RamDisabled(address))
-            },
+            }
             _ => self.shared_mem.set(address, data),
         }
     }
