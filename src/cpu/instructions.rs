@@ -1,4 +1,4 @@
-use crate::cpu::{LRError, SharpLR35902, SharpResult, F_CARRY, F_HALFCARRY, F_SUBTRACT, F_ZERO};
+use crate::cpu::{SharpLR35902, SharpResult, F_CARRY, F_HALFCARRY, F_SUBTRACT, F_ZERO};
 
 /// Groups of bits in an opcode.
 ///
@@ -15,11 +15,11 @@ use crate::cpu::{LRError, SharpLR35902, SharpResult, F_CARRY, F_HALFCARRY, F_SUB
 /// Bits 0-2: z
 /// ```
 pub struct OpcodeBits {
-    x: u8,
-    y: u8,
-    z: u8,
-    p: u8,
-    q: u8,
+    pub x: u8,
+    pub y: u8,
+    pub z: u8,
+    pub p: u8,
+    pub q: u8,
 }
 
 impl From<u8> for OpcodeBits {
@@ -542,15 +542,15 @@ pub fn sbc_a_d8(cpu: &mut SharpLR35902) -> SharpResult {
 #[derive(Debug, Default, PartialEq)]
 pub struct AluResult<T: Default> {
     /// Result of the operation.
-    result: T,
+    pub result: T,
     /// Whether the zero flag was set or not.
-    zero: bool,
+    pub zero: bool,
     /// Whether the carry flag was set or not.
-    carry: bool,
+    pub carry: bool,
     /// Whether the half-carry flag was set or not.
-    half_carry: bool,
+    pub half_carry: bool,
     /// Whether the subtract flag was set or not.
-    subtract: bool,
+    pub subtract: bool,
 }
 
 impl<T: Default> AluResult<T> {

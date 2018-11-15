@@ -1,3 +1,5 @@
+#![cfg_attr(test, allow(warnings))]
+
 mod cpu;
 mod memory;
 mod rom;
