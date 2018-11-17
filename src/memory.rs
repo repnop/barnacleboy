@@ -1,11 +1,8 @@
 use rom::GameBoyCartridge;
 
 pub trait MemoryInterface {
-    type Word;
-    type Index;
-
-    fn read(&self, address: Self::Index) -> Result<Self::Word, MemoryError>;
-    fn write(&mut self, address: Self::Index, data: Self::Word) -> Result<(), MemoryError>;
+    fn read(&self, address: u16) -> Result<u8, MemoryError>;
+    fn write(&mut self, address: u16, data: u8) -> Result<(), MemoryError>;
 }
 
 pub enum MemoryError {
@@ -144,10 +141,7 @@ impl RomOnly {
 }
 
 impl MemoryInterface for RomOnly {
-    type Word = u8;
-    type Index = u16;
-
-    fn read(&self, address: Self::Index) -> Result<Self::Word, MemoryError> {
+    fn read(&self, address: u16) -> Result<u8, MemoryError> {
         match address {
             0x0000...0x7FFF => self.rom.get(address),
             0xA000...0xBFFF => {
@@ -161,7 +155,7 @@ impl MemoryInterface for RomOnly {
         }
     }
 
-    fn write(&mut self, address: Self::Index, data: Self::Word) -> Result<(), MemoryError> {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), MemoryError> {
         match address {
             0x0000...0x7FFF => Err(MemoryError::InvalidMemoryWrite(address)),
             0xA000...0xBFFF => {
@@ -255,10 +249,7 @@ impl Mbc1 {
 
 // TODO: Bank number in error?
 impl MemoryInterface for Mbc1 {
-    type Word = u8;
-    type Index = u16;
-
-    fn read(&self, address: Self::Index) -> Result<Self::Word, MemoryError> {
+    fn read(&self, address: u16) -> Result<u8, MemoryError> {
         match address {
             0x0000...0x3FFF => self.rom_banks[0].get(address),
             0x4000...0x7FFF => self.rom_banks[self.rom_bank_select].get(address),
@@ -273,7 +264,7 @@ impl MemoryInterface for Mbc1 {
         }
     }
 
-    fn write(&mut self, address: Self::Index, data: Self::Word) -> Result<(), MemoryError> {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), MemoryError> {
         match address {
             0x0000...0x1FFF => {
                 if data & 0b1111 == 0xA {
@@ -368,10 +359,7 @@ impl Mbc2 {
 }
 
 impl MemoryInterface for Mbc2 {
-    type Word = u8;
-    type Index = u16;
-
-    fn read(&self, address: Self::Index) -> Result<Self::Word, MemoryError> {
+    fn read(&self, address: u16) -> Result<u8, MemoryError> {
         match address {
             0x0000...0x3FFF => self.rom_banks[0].get(address),
             0x4000...0x7FFF => self.rom_banks[self.rom_bank_select].get(address),
@@ -386,7 +374,7 @@ impl MemoryInterface for Mbc2 {
         }
     }
 
-    fn write(&mut self, address: Self::Index, data: Self::Word) -> Result<(), MemoryError> {
+    fn write(&mut self, address: u16, data: u8) -> Result<(), MemoryError> {
         match address {
             0x0000...0x1FFF => {
                 if (data & 0x1F) == 0 {
