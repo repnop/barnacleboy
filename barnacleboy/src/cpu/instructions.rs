@@ -246,7 +246,7 @@ pub fn pop_rr(cpu: &mut SharpLR35902) -> SharpResult {
 ///
 /// Flags affected: C - *, H - *, S - 0, Z - 0
 pub fn ldhl_sp_e(cpu: &mut SharpLR35902) -> SharpResult {
-    let e = cpu.read_instruction_word()? as i8 as i16;
+    let e = i16::from(cpu.read_instruction_word()? as i8);
     let sp = cpu.registers.sp as i16;
 
     let result = i16_add(sp, e);
@@ -697,6 +697,82 @@ pub fn dec(cpu: &mut SharpLR35902) -> SharpResult {
     else {
         cpu.as_dwords()[bits.p] -= 1
     }
+
+    Ok(())
+}
+
+pub fn rlca(cpu: &mut SharpLR35902) -> SharpResult {
+    let c = cpu.a & 0x80 == 0x80;
+
+    cpu.a.rotate_left(1);
+
+    if c {
+        cpu.set_c();
+    } else {
+        cpu.clear_c();
+    }
+
+    cpu.clear_h();
+    cpu.clear_s();
+    cpu.clear_z();
+
+    Ok(())
+}
+
+pub fn rla(cpu: &mut SharpLR35902) -> SharpResult {
+    let c = if cpu.c() { 1 } else { 0 };
+    let last_bit = cpu.a & 0x80 == 0x80;
+
+    cpu.a <<= 1;
+    cpu.a |= c;
+
+    if last_bit {
+        cpu.set_c();
+    } else {
+        cpu.clear_c();
+    }
+
+    cpu.clear_h();
+    cpu.clear_s();
+    cpu.clear_z();
+
+    Ok(())
+}
+
+pub fn rrca(cpu: &mut SharpLR35902) -> SharpResult {
+    let c = cpu.a & 0x01 == 0x01;
+
+    cpu.a.rotate_right(1);
+
+    if c {
+        cpu.set_c();
+    } else {
+        cpu.clear_c();
+    }
+
+    cpu.clear_h();
+    cpu.clear_s();
+    cpu.clear_z();
+
+    Ok(())
+}
+
+pub fn rra(cpu: &mut SharpLR35902) -> SharpResult {
+    let c = if cpu.c() { 1 } else { 0 } << 7;
+    let last_bit = cpu.a & 0x01 == 0x01;
+
+    cpu.a >>= 1;
+    cpu.a |= c;
+
+    if last_bit {
+        cpu.set_c();
+    } else {
+        cpu.clear_c();
+    }
+
+    cpu.clear_h();
+    cpu.clear_s();
+    cpu.clear_z();
 
     Ok(())
 }
