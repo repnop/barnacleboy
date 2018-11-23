@@ -163,9 +163,7 @@ pub fn ld(cpu: &mut SharpLR35902) -> SharpResult {
         (0b00, 0b110, 0b010) => {
             let a = cpu.a;
             cpu.write_hl(a)?;
-            println!("0x{:08b}", cpu.as_dwords().hl);
             cpu.as_dwords().hl -= 1;
-            println!("0x{:08b}", cpu.as_dwords().hl);
         }
         // LD rr, d16
         (0b00, r @ 0b000, 0b001)
@@ -271,18 +269,17 @@ pub fn ldhl_sp_e(cpu: &mut SharpLR35902) -> SharpResult {
 
 // BEGIN 8-BIT ARITHMETIC AND LOGIC OPERATIONS
 
-/// Adds the value in the register `r` to register `A` and stores the result in
-/// register `A`.
-///
-/// Flags affected: C - *, H - *, S - 0, Z - *
-pub fn add_a_r(cpu: &mut SharpLR35902) -> SharpResult {
+pub fn add(cpu: &mut SharpLR35902) -> SharpResult {
     let bits = OpcodeBits::from(cpu.current_opcode);
 
-    let (result, flags) = if bits.z != 0b110 {
-        u8_add(cpu.registers.a, cpu.registers[bits.z]).into_parts()
-    } else {
-        let second = cpu.read_hl()?;
-        u8_add(cpu.registers.a, second).into_parts()
+    let (result, flags) = match (bits.x & 1 == 1, bits.z == 0b110) {
+        // ADD A, r
+        (false, false) => u8_add(cpu.a, cpu.registers[bits.z]).into_parts(),
+        // ADD A, d8
+        (true, true) => u8_add(cpu.a, cpu.read_instruction_word()?).into_parts(),
+        // ADD A, (HL)
+        (false, true) => u8_add(cpu.a, cpu.read_hl()?).into_parts(),
+        _ => unreachable!(),
     };
 
     cpu.registers.a = result;
@@ -291,56 +288,25 @@ pub fn add_a_r(cpu: &mut SharpLR35902) -> SharpResult {
     Ok(())
 }
 
-/// Adds the value of the immediate 8-bit operand `d8` to register `A` and
-/// stores the result in register `A`.
-///
-/// Flags affected: C - *, H - *, S - 0, Z - *
-pub fn add_a_d8(cpu: &mut SharpLR35902) -> SharpResult {
-    let d8 = cpu.read_instruction_word()?;
-
-    let (result, flags) = u8_add(cpu.registers.a, d8).into_parts();
-
-    cpu.registers.a = result;
-    cpu.registers.f = flags;
-
-    Ok(())
-}
-
-/// Adds the value in the register `r` to register `A` along with the value of
-/// the carry flag then stores the result in register `A`.
-///
-/// Flags affected: C - *, H - *, S - 0, Z - *
-pub fn adc_a_r(cpu: &mut SharpLR35902) -> SharpResult {
+pub fn adc(cpu: &mut SharpLR35902) -> SharpResult {
+    let bits = OpcodeBits::from(cpu.current_opcode);
     let c = if cpu.registers.f & F_CARRY == F_CARRY {
         1
     } else {
         0
     };
 
-    add_a_r(cpu)?;
-
-    let (result, flags) = u8_add(cpu.registers.a, c).into_parts();
-
-    cpu.registers.a = result;
-    cpu.registers.f = flags;
-
-    Ok(())
-}
-
-/// Adds the value of the immediate 8-bit operand to register `A` along with the
-/// value of the carry flag then stores the result in register `A`.
-///
-/// Flags affected: C - *, H - *, S - 0, Z - *
-pub fn adc_a_d8(cpu: &mut SharpLR35902) -> SharpResult {
-    let c = if cpu.registers.f & F_CARRY == F_CARRY {
-        1
-    } else {
-        0
+    match (bits.x & 1 == 1, bits.z == 0b110) {
+        // ADD A, r
+        (false, false) => u8_add(cpu.a, cpu.registers[bits.z]),
+        // ADD A, d8
+        (true, true) => u8_add(cpu.a, cpu.read_instruction_word()?),
+        // ADD A, (HL)
+        (false, true) => u8_add(cpu.a, cpu.read_hl()?),
+        _ => unreachable!(),
     };
 
-    add_a_d8(cpu)?;
-
-    let (result, flags) = u8_add(cpu.registers.a, c).into_parts();
+    let (result, flags) = u8_add(cpu.a, c).into_parts();
 
     cpu.registers.a = result;
     cpu.registers.f = flags;
@@ -348,18 +314,17 @@ pub fn adc_a_d8(cpu: &mut SharpLR35902) -> SharpResult {
     Ok(())
 }
 
-/// Subtracts the value in the register `r` from register `A` and stores the
-/// result in register `A`.
-///
-/// Flags affected: C - *, H - *, S - 1, Z - *
-pub fn sub_a_r(cpu: &mut SharpLR35902) -> SharpResult {
+pub fn sub(cpu: &mut SharpLR35902) -> SharpResult {
     let bits = OpcodeBits::from(cpu.current_opcode);
 
-    let (result, flags) = if bits.z != 0b110 {
-        u8_sub(cpu.registers.a, cpu.registers[bits.z]).into_parts()
-    } else {
-        let second = cpu.read_hl()?;
-        u8_sub(cpu.registers.a, second).into_parts()
+    let (result, flags) = match (bits.x & 1 == 1, bits.z == 0b110) {
+        // SUB A, r
+        (false, false) => u8_sub(cpu.a, cpu.registers[bits.z]).into_parts(),
+        // SUB A, d8
+        (true, true) => u8_sub(cpu.a, cpu.read_instruction_word()?).into_parts(),
+        // SUB A, (HL)
+        (false, true) => u8_sub(cpu.a, cpu.read_hl()?).into_parts(),
+        _ => unreachable!(),
     };
 
     cpu.registers.a = result;
@@ -368,55 +333,29 @@ pub fn sub_a_r(cpu: &mut SharpLR35902) -> SharpResult {
     Ok(())
 }
 
-/// Subtracts the value of the immediate 8-bit operand `d8` from register `A`
-/// and stores the result in register `A`.
-///
-/// Flags affected: C - *, H - *, S - 1, Z - *
-pub fn sub_a_d8(cpu: &mut SharpLR35902) -> SharpResult {
-    let d8 = cpu.read_instruction_word()?;
-
-    let (result, flags) = u8_sub(cpu.registers.a, d8).into_parts();
-
-    cpu.registers.a = result;
-    cpu.registers.f = flags;
-
-    Ok(())
-}
-
-/// Subtracts the value in the register `r` from register `A` along with the
-/// value of the carry flag then stores the result in register `A`.
-///
-/// Flags affected: C - *, H - *, S - 1, Z - *
-pub fn sbc_a_r(cpu: &mut SharpLR35902) -> SharpResult {
+pub fn sbc(cpu: &mut SharpLR35902) -> SharpResult {
+    let bits = OpcodeBits::from(cpu.current_opcode);
     let c = if cpu.registers.f & F_CARRY == F_CARRY {
         1
     } else {
         0
     };
 
-    sub_a_r(cpu)?;
-
-    let (result, flags) = u8_sub(cpu.registers.a, c).into_parts();
-
-    cpu.registers.a = result;
-    cpu.registers.f = flags;
-
-    Ok(())
-}
-
-/// Subtracts the value of the immediate 8-bit operand `d8` from register `A`
-/// along with the value of the carry flag then stores the result in register
-/// `A`.
-///
-/// Flags affected: C - *, H - *, S - 1, Z - *
-pub fn sbc_a_d8(cpu: &mut SharpLR35902) -> SharpResult {
-    let c = if cpu.registers.f & F_CARRY == F_CARRY {
-        1
-    } else {
-        0
-    };
-
-    sub_a_d8(cpu)?;
+    match (bits.x & 1 == 1, bits.z == 0b110) {
+        // SBC A, r
+        (false, false) => {
+            cpu.a -= cpu.registers[bits.z];
+        }
+        // SBC A, d8
+        (true, true) => {
+            cpu.a -= cpu.read_instruction_word()?;
+        }
+        // SBC A, (HL)
+        (false, true) => {
+            cpu.a -= cpu.read_hl()?;
+        }
+        _ => unreachable!(),
+    }
 
     let (result, flags) = u8_sub(cpu.registers.a, c).into_parts();
 

@@ -122,7 +122,7 @@ fn ld_at_hld_a() {
     let mut cpu = SharpLR35902::new(dmi);
     cpu.registers.a = 0xFF;
     cpu.registers.as_dwords().hl = 0x01;
-    cpu.current_opcode = 0b00_110_010;
+    cpu.current_opcode = 0x32;
     assert!(ins::ld(&mut cpu).is_ok());
     assert_eq!(cpu.read(0x01).unwrap(), 0xFF);
     assert_eq!(cpu.registers.as_dwords().hl, 0x00);
