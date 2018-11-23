@@ -52,44 +52,46 @@ impl Parse for TestArgs {
             })
         };
 
-        let arg = setup_fn.inputs.iter_mut().next().unwrap();
-        let pat = match arg {
-            syn::FnArg::Inferred(pat) => pat.clone(),
-            _ => unreachable!(),
-        };
-
-        let captured = |pat| {
-            syn::FnArg::Captured(syn::ArgCaptured {
-                pat,
-                colon_token: syn::token::Colon {
-                    spans: [Span::call_site()],
-                },
-                ty: syn::Type::Reference(syn::TypeReference {
-                    and_token: syn::token::And {
-                        spans: [Span::call_site()],
-                    },
-                    lifetime: None,
-                    mutability: Some(syn::token::Mut {
-                        span: Span::call_site(),
-                    }),
-                    elem: Box::new(syn::Type::Verbatim(syn::TypeVerbatim {
-                        tts: TokenStream::from(quote! { SharpLR35902 }).into(),
-                    })),
-                }),
-            })
-        };
-
-        if let Either::Right(test_fn) = &mut test_fn {
-            let arg = test_fn.inputs.iter_mut().next().unwrap();
+        {
+            let arg = setup_fn.inputs.iter_mut().next().unwrap();
             let pat = match arg {
                 syn::FnArg::Inferred(pat) => pat.clone(),
                 _ => unreachable!(),
             };
 
+            let captured = |pat| {
+                syn::FnArg::Captured(syn::ArgCaptured {
+                    pat,
+                    colon_token: syn::token::Colon {
+                        spans: [Span::call_site()],
+                    },
+                    ty: syn::Type::Reference(syn::TypeReference {
+                        and_token: syn::token::And {
+                            spans: [Span::call_site()],
+                        },
+                        lifetime: None,
+                        mutability: Some(syn::token::Mut {
+                            span: Span::call_site(),
+                        }),
+                        elem: Box::new(syn::Type::Verbatim(syn::TypeVerbatim {
+                            tts: TokenStream::from(quote! { SharpLR35902 }).into(),
+                        })),
+                    }),
+                })
+            };
+
+            if let Either::Right(test_fn) = &mut test_fn {
+                let arg = test_fn.inputs.iter_mut().next().unwrap();
+                let pat = match arg {
+                    syn::FnArg::Inferred(pat) => pat.clone(),
+                    _ => unreachable!(),
+                };
+
+                *arg = captured(pat);
+            }
+
             *arg = captured(pat);
         }
-
-        *arg = captured(pat);
 
         Ok(TestArgs {
             name,

@@ -2,7 +2,6 @@
 name = "barnacleboy_macros"
 version = "0.1.0"
 authors = ["Wesley Norris <repnop@outlook.com>"]
-edition = "2018"
 
 [lib]
 proc-macro = true
