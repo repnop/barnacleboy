@@ -272,18 +272,48 @@ pub fn ldhl_sp_e(cpu: &mut SharpLR35902) -> SharpResult {
 pub fn add(cpu: &mut SharpLR35902) -> SharpResult {
     let bits = OpcodeBits::from(cpu.current_opcode);
 
-    let (result, flags) = match (bits.x & 1 == 1, bits.z == 0b110) {
-        // ADD A, r
-        (false, false) => u8_add(cpu.a, cpu.registers[bits.z]).into_parts(),
-        // ADD A, d8
-        (true, true) => u8_add(cpu.a, cpu.read_instruction_word()?).into_parts(),
-        // ADD A, (HL)
-        (false, true) => u8_add(cpu.a, cpu.read_hl()?).into_parts(),
-        _ => unreachable!(),
-    };
+    // 8-bit ADD
+    if bits.y == 0b000 {
+        let (result, flags) = match (bits.x & 1 == 1, bits.z == 0b110) {
+            // ADD A, r
+            (false, false) => u8_add(cpu.a, cpu.registers[bits.z]).into_parts(),
+            // ADD A, d8
+            (true, true) => u8_add(cpu.a, cpu.read_instruction_word()?).into_parts(),
+            // ADD A, (HL)
+            (false, true) => u8_add(cpu.a, cpu.read_hl()?).into_parts(),
+            _ => unreachable!(),
+        };
+        cpu.registers.a = result;
+        cpu.registers.f = flags;
+    }
+    // 16-bit ADD
+    else if bits.x == 0b11 {
+        let val = cpu.as_dwords()[bits.p];
+        let (result, flags) = u16_add(cpu.as_dwords().hl, val).into_parts();
+        cpu.as_dwords().hl = result;
 
-    cpu.registers.a = result;
-    cpu.registers.f = flags;
+        let original_z = cpu.z();
+
+        cpu.f = flags;
+
+        if original_z {
+            cpu.set_z();
+        } else {
+            cpu.clear_z();
+        }
+    }
+    // ADD SP, e
+    else {
+        let e = i16::from(cpu.read_instruction_word()? as i8);
+        let sp = cpu.registers.sp as i16;
+
+        let (result, flags) = i16_add(sp, e).into_parts();
+
+        cpu.sp = result as u16;
+        cpu.f = flags;
+
+        cpu.clear_z();
+    };
 
     Ok(())
 }
@@ -593,6 +623,80 @@ pub fn cp(cpu: &mut SharpLR35902) -> SharpResult {
     };
 
     cpu.f = flags;
+
+    Ok(())
+}
+
+pub fn inc(cpu: &mut SharpLR35902) -> SharpResult {
+    let bits = OpcodeBits::from(cpu.current_opcode);
+
+    // 8-bit INC
+    if bits.z == 0b100 {
+        let flags = if bits.y == 0b110 {
+            let val = cpu.read_hl()?;
+            let (result, flags) = u8_add(val, 1).into_parts();
+            cpu.write_hl(result)?;
+
+            flags
+        } else {
+            let r = cpu.registers[bits.y];
+            let (result, flags) = u8_add(r, 1).into_parts();
+            cpu.registers[bits.y] = result;
+
+            flags
+        };
+
+        let original_c = cpu.c();
+
+        cpu.f = flags;
+
+        if original_c {
+            cpu.set_c();
+        } else {
+            cpu.clear_c();
+        }
+    }
+    // 16-bit INC
+    else {
+        cpu.as_dwords()[bits.p] += 1
+    };
+
+    Ok(())
+}
+
+pub fn dec(cpu: &mut SharpLR35902) -> SharpResult {
+    let bits = OpcodeBits::from(cpu.current_opcode);
+
+    // 8-bit DEC
+    if bits.z == 0b101 {
+        let flags = if bits.y == 0b110 {
+            let val = cpu.read_hl()?;
+            let (result, flags) = u8_sub(val, 1).into_parts();
+            cpu.write_hl(result)?;
+
+            flags
+        } else {
+            let r = cpu.registers[bits.y];
+            let (result, flags) = u8_sub(r, 1).into_parts();
+            cpu.registers[bits.y] = result;
+
+            flags
+        };
+
+        let original_c = cpu.c();
+
+        cpu.f = flags;
+
+        if original_c {
+            cpu.set_c();
+        } else {
+            cpu.clear_c();
+        }
+    }
+    // 16-bit DEC
+    else {
+        cpu.as_dwords()[bits.p] -= 1
+    }
 
     Ok(())
 }
