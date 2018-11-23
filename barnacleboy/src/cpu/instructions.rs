@@ -58,6 +58,7 @@ pub fn stop(_: &mut SharpLR35902) -> SharpResult {
 pub fn ld(cpu: &mut SharpLR35902) -> SharpResult {
     let bits = OpcodeBits::from(cpu.current_opcode);
 
+    // 0b00_111_110
     match (bits.x, bits.y, bits.z) {
         // LD r, r'
         (0b01, r @ 0b000..=0b101, rp @ 0b000..=0b101) => {
@@ -65,12 +66,12 @@ pub fn ld(cpu: &mut SharpLR35902) -> SharpResult {
             cpu.registers[r] = rp;
         }
         // LD r, d8
-        (0b00, r @ 0b000..=0b101, 0b110) => {
+        (0b00, r, 0b110) if r != 0b110 => {
             let d8 = cpu.read_instruction_word()?;
             cpu.registers[r] = d8;
         }
         // LD r, (HL)
-        (0b01, r @ 0b000..=0b101, 0b110) => {
+        (0b01, r, 0b110) if r != 0b110 => {
             let val = cpu.read_hl()?;
             cpu.registers[r] = val;
         }
@@ -110,12 +111,12 @@ pub fn ld(cpu: &mut SharpLR35902) -> SharpResult {
         }
         // LD A, (d8+0xFF00)
         (0b11, 0b110, 0b000) => {
-            let d8 = cpu.read_instruction_word()? as u16 + 0xFF00;
+            let d8 = u16::from(cpu.read_instruction_word()?) + 0xFF00;
             cpu.a = cpu.read(d8)?;
         }
         // LD (d8+0xFF00), A
         (0b11, 0b100, 0b000) => {
-            let d8 = cpu.read_instruction_word()? as u16 + 0xFF00;
+            let d8 = u16::from(cpu.read_instruction_word()?) + 0xFF00;
             let a = cpu.a;
             cpu.write(d8, a)?;
         }
@@ -162,7 +163,9 @@ pub fn ld(cpu: &mut SharpLR35902) -> SharpResult {
         (0b00, 0b110, 0b010) => {
             let a = cpu.a;
             cpu.write_hl(a)?;
+            println!("0x{:08b}", cpu.as_dwords().hl);
             cpu.as_dwords().hl -= 1;
+            println!("0x{:08b}", cpu.as_dwords().hl);
         }
         // LD rr, d16
         (0b00, r @ 0b000, 0b001)
@@ -181,7 +184,7 @@ pub fn ld(cpu: &mut SharpLR35902) -> SharpResult {
             let sp = cpu.sp;
             let d16 = cpu.read_instruction_dword()?;
             cpu.write(d16, (sp & 0x00FF) as u8)?;
-            cpu.write(d16 + 1, ((sp & 0xFF00) as u8) >> 8)?;
+            cpu.write(d16 + 1, ((sp & 0xFF00) >> 8) as u8)?;
         }
         _ => unreachable!(),
     }
