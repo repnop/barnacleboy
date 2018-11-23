@@ -542,10 +542,24 @@ pub fn sbc_a_d8(cpu: &mut SharpLR35902) -> SharpResult {
 /// register `A` or with a register `r`.
 ///
 /// Flags affected: C - 0, H - 1, S - 0, Z - *
-#[ins_test("and_foo", |cpu| {
+#[ins_test("and_d8", |cpu| {
+    cpu.memory_controller.write(0x00, 0xFF).unwrap();
+    cpu.a = 0x0F;
+    cpu.current_opcode = 0b11_100_110;
+}, |cpu| {
+    cpu.a == 0x0F
+})]
+#[ins_test("and_r", |cpu| {
     cpu.b = 0xFF;
     cpu.a = 0x0F;
     cpu.current_opcode = 0b10_100_000;
+}, |cpu| {
+    cpu.a == 0x0F
+})]
+#[ins_test("and_hl", |cpu| {
+    cpu.write_hl(0xFF).unwrap();
+    cpu.a = 0x0F;
+    cpu.current_opcode = 0b10_100_110;
 }, |cpu| {
     cpu.a == 0x0F
 })]
@@ -588,10 +602,31 @@ fn and(cpu: &mut SharpLR35902) -> SharpResult {
 /// register `A` or with a register `r`.
 ///
 /// Flags affected: C - 0, H - 0, S - 0, Z - *
+#[ins_test("or_d8", |cpu| {
+    cpu.memory_controller.write(0x00, 0xF0).unwrap();
+    cpu.a = 0x0F;
+    cpu.current_opcode = 0b11_110_110;
+}, |cpu| {
+    cpu.a == 0xFF
+})]
+#[ins_test("or_r", |cpu| {
+    cpu.b = 0xF0;
+    cpu.a = 0x0F;
+    cpu.current_opcode = 0b10_110_000;
+}, |cpu| {
+    cpu.a == 0xFF
+})]
+#[ins_test("or_hl", |cpu| {
+    cpu.write_hl(0xF0).unwrap();
+    cpu.a = 0x0F;
+    cpu.current_opcode = 0b10_110_110;
+}, |cpu| {
+    cpu.a == 0xFF
+})]
 fn or(cpu: &mut SharpLR35902) -> SharpResult {
     let bits = OpcodeBits::from(cpu.current_opcode);
 
-    match (bits.x & 1 == 0, bits.z == 0b110) {
+    match (bits.x & 1 == 1, bits.z == 0b110) {
         // AND d8
         (true, true) => {
             let d8 = cpu.read_instruction_word()?;

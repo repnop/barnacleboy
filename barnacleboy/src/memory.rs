@@ -5,6 +5,7 @@ pub trait MemoryInterface {
     fn write(&mut self, address: u16, data: u8) -> Result<(), MemoryError>;
 }
 
+#[derive(Debug)]
 pub enum MemoryError {
     InvalidMemoryRead(u16),
     InvalidMemoryWrite(u16),
