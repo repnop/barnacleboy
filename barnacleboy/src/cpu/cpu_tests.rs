@@ -5,18 +5,16 @@ use crate::cpu::{
 use crate::memory::{MemoryError, MemoryInterface};
 
 #[derive(Debug, Default)]
-struct DummyMemoryInterface {
+pub(crate) struct DummyMemoryInterface {
     mem: [u8; 32],
 }
 
 impl MemoryInterface for DummyMemoryInterface {
-    type Word = u8;
-    type Index = u16;
-
-    fn read(&self, address: Self::Index) -> Result<Self::Word, MemoryError> {
+    fn read(&self, address: u16) -> Result<u8, MemoryError> {
         Ok(self.mem[address as usize])
     }
-    fn write(&mut self, address: Self::Index, data: Self::Word) -> Result<(), MemoryError> {
+
+    fn write(&mut self, address: u16, data: u8) -> Result<(), MemoryError> {
         self.mem[address as usize] = data;
         Ok(())
     }

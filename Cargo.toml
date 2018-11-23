@@ -1,9 +1,8 @@
-[package]
-name = "barnacleboy"
-version = "0.1.0"
-authors = ["rep-nop <repnop@outlook.com>"]
-
-[dependencies]
+[workspace]
+members = [
+    "barnacleboy",
+    "barnacleboy_macros",
+]
 
 [profile.dev]
 overflow-checks = false

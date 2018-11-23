@@ -14,22 +14,22 @@ pub const F_HALFCARRY: u8 = 0b0010_0000;
 /// Carry flag.
 pub const F_CARRY: u8 = 0b0001_0000;
 
-type MemoryController<'a> = &'a mut dyn MemoryInterface<Word = u8, Index = u16>;
+type MemoryController<'a> = &'a mut dyn MemoryInterface;
 type SharpResult = Result<(), LRError>;
 /// The original Sharp LR35902 processor, a 8080/Z80 derivative with some
 /// interesting changes. Most notably, removal of the shadow register set along
 /// with various opcode changes.
 pub struct SharpLR35902<'a> {
     /// CPU registers.
-    registers: SharpLR35902Registers,
+    pub(crate) registers: SharpLR35902Registers,
     /// Interrupt pending flag. (Do we need this?)
-    interrupt_pending: bool,
+    pub(crate) interrupt_pending: bool,
     /// Whether the CPU is halted or not.
-    halted: bool,
+    pub(crate) halted: bool,
     /// Current instruction opcode.
-    current_opcode: u8,
+    pub(crate) current_opcode: u8,
     /// `Rc` to the memory controller object.
-    memory_controller: MemoryController<'a>,
+    pub(crate) memory_controller: MemoryController<'a>,
 }
 
 /// The Sharp LR35902 register set. Contains 7 8-bit general purpose registers
@@ -347,5 +347,19 @@ impl<'a> SharpLR35902<'a> {
 
         self.memory_controller.write(hl, data)?;
         Ok(())
+    }
+}
+
+impl<'a> std::ops::Deref for SharpLR35902<'a> {
+    type Target = SharpLR35902Registers;
+
+    fn deref(&self) -> &SharpLR35902Registers {
+        &self.registers
+    }
+}
+
+impl<'a> std::ops::DerefMut for SharpLR35902<'a> {
+    fn deref_mut(&mut self) -> &mut SharpLR35902Registers {
+        &mut self.registers
     }
 }

@@ -1,0 +1,7 @@
+[package]
+name = "barnacleboy"
+version = "0.1.0"
+authors = ["rep-nop <repnop@outlook.com>"]
+
+[dependencies]
+barnacleboy_macros = { path = "../barnacleboy_macros" }

@@ -1,5 +1,7 @@
 #![cfg_attr(test, allow(warnings))]
 
+extern crate barnacleboy_macros;
+
 mod cpu;
 mod memory;
 mod rom;

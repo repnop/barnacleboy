@@ -1,4 +1,5 @@
 use crate::cpu::{SharpLR35902, SharpResult, F_CARRY, F_HALFCARRY, F_SUBTRACT, F_ZERO};
+use barnacleboy_macros::ins_test;
 
 /// Groups of bits in an opcode.
 ///
@@ -537,6 +538,91 @@ pub fn sbc_a_d8(cpu: &mut SharpLR35902) -> SharpResult {
     Ok(())
 }
 
+/// Performs a logical AND opteration of the immediate 8-bit operand `d8` from
+/// register `A` or with a register `r`.
+///
+/// Flags affected: C - 0, H - 1, S - 0, Z - *
+#[ins_test("and_foo", |cpu| {
+    cpu.b = 0xFF;
+    cpu.a = 0x0F;
+    cpu.current_opcode = 0b10_100_000;
+}, |cpu| {
+    cpu.a == 0x0F
+})]
+fn and(cpu: &mut SharpLR35902) -> SharpResult {
+    let bits = OpcodeBits::from(cpu.current_opcode);
+
+    match (bits.x & 1 == 1, bits.z == 0b110) {
+        // AND d8
+        (true, true) => {
+            let d8 = cpu.read_instruction_word()?;
+            cpu.registers.a &= d8;
+        }
+        // AND r
+        (false, false) => {
+            let reg = cpu.registers[bits.z];
+            cpu.registers.a &= reg;
+        }
+        // AND (HL)
+        (false, true) => {
+            let val = cpu.read_hl()?;
+            cpu.registers.a &= val;
+        }
+        _ => unreachable!(),
+    }
+
+    cpu.clear_c();
+    cpu.set_h();
+    cpu.clear_s();
+
+    if cpu.registers.a == 0 {
+        cpu.set_z();
+    } else {
+        cpu.clear_z();
+    }
+
+    Ok(())
+}
+
+/// Performs a logical AND opteration of the immediate 8-bit operand `d8` from
+/// register `A` or with a register `r`.
+///
+/// Flags affected: C - 0, H - 0, S - 0, Z - *
+fn or(cpu: &mut SharpLR35902) -> SharpResult {
+    let bits = OpcodeBits::from(cpu.current_opcode);
+
+    match (bits.x & 1 == 0, bits.z == 0b110) {
+        // AND d8
+        (true, true) => {
+            let d8 = cpu.read_instruction_word()?;
+            cpu.registers.a |= d8;
+        }
+        // AND r
+        (false, false) => {
+            let reg = cpu.registers[bits.z];
+            cpu.registers.a |= reg;
+        }
+        // AND (HL)
+        (false, true) => {
+            let val = cpu.read_hl()?;
+            cpu.registers.a |= val;
+        }
+        _ => unreachable!(),
+    }
+
+    cpu.clear_c();
+    cpu.clear_h();
+    cpu.clear_s();
+
+    if cpu.registers.a == 0 {
+        cpu.set_z();
+    } else {
+        cpu.clear_z();
+    }
+
+    Ok(())
+}
+
 // BEGIN HELPER FUNCTIONS
 /// Contains the result and flag changes of an ALU operation.
 #[derive(Debug, Default, PartialEq)]
@@ -573,7 +659,7 @@ impl<T: Default> AluResult<T> {
             }
 
             if self.subtract {
-                f | F_SUBTRACT;
+                f |= F_SUBTRACT;
             }
 
             f
