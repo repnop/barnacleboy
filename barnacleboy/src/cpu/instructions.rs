@@ -36,7 +36,7 @@ impl From<u8> for OpcodeBits {
 }
 
 /// Array of instructions for executing individual opcodes.
-pub const INSTRUCTIONS: [fn(&mut SharpLR35902) -> SharpResult; 2] = [nop, ld_r_r];
+pub const INSTRUCTIONS: [fn(&mut SharpLR35902) -> SharpResult; 2] = [nop, ld];
 
 /// NOP instruction. Does nothing.
 ///
@@ -55,226 +55,136 @@ pub fn stop(_: &mut SharpLR35902) -> SharpResult {
 
 // BEGIN 8-BIT TRANSFER INSTRUCTIONS
 
-/// Loads the value of register `A` into the memory address pointed to by
-/// register `BC`.
-///
-/// Flags affected: none
-pub fn ld_at_bc_a(cpu: &mut SharpLR35902) -> SharpResult {
-    let addr = cpu.registers.as_dwords().bc;
-    let a = cpu.registers.a;
-
-    cpu.write(addr, a)?;
-    Ok(())
-}
-
-/// Loads the value of register `A` into the memory address pointed to by
-/// register `DE`.
-///
-/// Flags affected: none
-pub fn ld_at_de_a(cpu: &mut SharpLR35902) -> SharpResult {
-    let addr = cpu.registers.as_dwords().de;
-    let a = cpu.registers.a;
-
-    cpu.write(addr, a)?;
-    Ok(())
-}
-
-/// Loads the value of register `A` into the memory address pointed to by
-/// register `HL` then increments `HL`.
-///
-/// Flags affected: none
-pub fn ld_at_hli_a(cpu: &mut SharpLR35902) -> SharpResult {
-    let a = cpu.registers.a;
-
-    cpu.write_hl(a)?;
-    cpu.registers.as_dwords().hl += 1;
-
-    Ok(())
-}
-
-/// Loads the value of register `A` into the memory address pointed to by
-/// register `HL` then decrements `HL`.
-///
-/// Flags affected: none
-pub fn ld_at_hld_a(cpu: &mut SharpLR35902) -> SharpResult {
-    let a = cpu.registers.a;
-
-    cpu.write_hl(a)?;
-    cpu.registers.as_dwords().hl -= 1;
-
-    Ok(())
-}
-
-/// Loads the value of the memory address pointed to by register `HL` into
-/// register `A` into then increments `HL`.
-///
-/// Flags affected: none
-pub fn ld_a_at_hli(cpu: &mut SharpLR35902) -> SharpResult {
-    cpu.registers.a = cpu.read_hl()?;
-    cpu.registers.as_dwords().hl += 1;
-
-    Ok(())
-}
-
-/// Loads the value of the memory address pointed to by register `HL` into
-/// register `A` into then decrements `HL`.
-///
-/// Flags affected: none
-pub fn ld_a_at_hld(cpu: &mut SharpLR35902) -> SharpResult {
-    cpu.registers.a = cpu.read_hl()?;
-    cpu.registers.as_dwords().hl -= 1;
-
-    Ok(())
-}
-
-/// Reads an immediate 8-bit value into the specified register.
-///
-/// Flags affected: none
-pub fn ld_r_d8(cpu: &mut SharpLR35902) -> SharpResult {
+pub fn ld(cpu: &mut SharpLR35902) -> SharpResult {
     let bits = OpcodeBits::from(cpu.current_opcode);
 
-    if bits.y != 6 {
-        cpu.registers[bits.y] = cpu.read_instruction_word()?;
-    } else {
-        let data = cpu.read_instruction_word()?;
-        cpu.write_hl(data)?;
+    match (bits.x, bits.y, bits.z) {
+        // LD r, r'
+        (0b01, r @ 0b000..=0b101, rp @ 0b000..=0b101) => {
+            let rp = cpu.registers[rp];
+            cpu.registers[r] = rp;
+        }
+        // LD r, d8
+        (0b00, r @ 0b000..=0b101, 0b110) => {
+            let d8 = cpu.read_instruction_word()?;
+            cpu.registers[r] = d8;
+        }
+        // LD r, (HL)
+        (0b01, r @ 0b000..=0b101, 0b110) => {
+            let val = cpu.read_hl()?;
+            cpu.registers[r] = val;
+        }
+        // LD (HL), r
+        (0b01, 0b110, r) => {
+            let reg = cpu.registers[r];
+            cpu.write_hl(reg)?;
+        }
+        // LD (HL), d8
+        (0b00, 0b110, 0b110) => {
+            let d8 = cpu.read_instruction_word()?;
+            cpu.write_hl(d8)?;
+        }
+        // LD A, (BC)
+        (0b00, 0b001, 0b010) => {
+            let bc = cpu.registers.as_dwords().bc;
+            let val = cpu.read(bc)?;
+            cpu.a = val;
+        }
+        // LD A, (DE)
+        (0b00, 0b011, 0b010) => {
+            let de = cpu.registers.as_dwords().de;
+            let val = cpu.read(de)?;
+            cpu.a = val;
+        }
+        // LD A, (C+0xFF00)
+        (0b11, 0b110, 0b010) => {
+            let c = cpu.c as u16 + 0xFF00;
+            let val = cpu.read(c)?;
+            cpu.a = val;
+        }
+        // LD (C+0xFF00), A
+        (0b11, 0b100, 0b010) => {
+            let c = cpu.c as u16 + 0xFF00;
+            let a = cpu.a;
+            cpu.write(c, a)?;
+        }
+        // LD A, (d8+0xFF00)
+        (0b11, 0b110, 0b000) => {
+            let d8 = cpu.read_instruction_word()? as u16 + 0xFF00;
+            cpu.a = cpu.read(d8)?;
+        }
+        // LD (d8+0xFF00), A
+        (0b11, 0b100, 0b000) => {
+            let d8 = cpu.read_instruction_word()? as u16 + 0xFF00;
+            let a = cpu.a;
+            cpu.write(d8, a)?;
+        }
+        // LD A, (d16)
+        (0b11, 0b111, 0b010) => {
+            let d8 = cpu.read_instruction_dword()?;
+            cpu.a = cpu.read(d8)?;
+        }
+        // LD (d16), A
+        (0b11, 0b101, 0b010) => {
+            let d8 = cpu.read_instruction_dword()?;
+            let a = cpu.a;
+            cpu.write(d8, a)?;
+        }
+        // LD A, (HLI)
+        (0b00, 0b101, 0b010) => {
+            cpu.a = cpu.read_hl()?;
+            cpu.as_dwords().hl += 1;
+        }
+        // LD A, (HLD)
+        (0b00, 0b111, 0b010) => {
+            cpu.a = cpu.read_hl()?;
+            cpu.as_dwords().hl -= 1;
+        }
+        // LD (BC), A
+        (0b00, 0b000, 0b010) => {
+            let bc = cpu.as_dwords().bc;
+            let a = cpu.a;
+            cpu.write(bc, a)?;
+        }
+        // LD (DE), A
+        (0b00, 0b010, 0b010) => {
+            let de = cpu.as_dwords().de;
+            let a = cpu.a;
+            cpu.write(de, a)?;
+        }
+        // LD (HLI), A
+        (0b00, 0b100, 0b010) => {
+            let a = cpu.a;
+            cpu.write_hl(a)?;
+            cpu.as_dwords().hl += 1;
+        }
+        // LD (HLD), A
+        (0b00, 0b110, 0b010) => {
+            let a = cpu.a;
+            cpu.write_hl(a)?;
+            cpu.as_dwords().hl -= 1;
+        }
+        // LD rr, d16
+        (0b00, r @ 0b000, 0b001)
+        | (0b00, r @ 0b010, 0b001)
+        | (0b00, r @ 0b100, 0b001)
+        | (0b00, r @ 0b110, 0b001) => {
+            let d16 = cpu.read_instruction_dword()?;
+            cpu.as_dwords()[r] = d16;
+        }
+        // LD SP, HL
+        (0b11, 0b111, 0b001) => {
+            cpu.sp = cpu.as_dwords().hl;
+        }
+        // LD (d16), SP
+        (0b00, 0b001, 0b000) => {
+            let sp = cpu.sp;
+            let d16 = cpu.read_instruction_dword()?;
+            cpu.write(d16, (sp & 0x00FF) as u8)?;
+            cpu.write(d16 + 1, ((sp & 0xFF00) as u8) >> 8)?;
+        }
+        _ => unreachable!(),
     }
-
-    Ok(())
-}
-
-/// Reads an 8-bit value pointed to by register `HL` into the specified
-/// register.
-///
-/// Flags affected: none
-pub fn ld_r_at_hl(cpu: &mut SharpLR35902) -> SharpResult {
-    let bits = OpcodeBits::from(cpu.current_opcode);
-    cpu.registers[bits.y] = cpu.read_hl()?;
-
-    Ok(())
-}
-
-/// Writes an 8-bit value in the specified register to the memory location
-/// pointed to by register `HL`.
-///
-/// Flags affected: none
-pub fn ld_at_hl_r(cpu: &mut SharpLR35902) -> SharpResult {
-    let bits = OpcodeBits::from(cpu.current_opcode);
-    let val = cpu.registers[bits.z];
-
-    cpu.write_hl(val)?;
-
-    Ok(())
-}
-
-/// Writes an 8-bit value in the specified register to the memory location
-/// pointed to by register `HL`.
-///
-/// Flags affected: none
-pub fn ld_at_hl_d8(cpu: &mut SharpLR35902) -> SharpResult {
-    let val = cpu.read_instruction_word()?;
-    cpu.write_hl(val)?;
-
-    Ok(())
-}
-
-/// Reads an 8-bit value pointed to by register `BC` into the `A`
-/// register.
-///
-/// Flags affected: none
-pub fn ld_a_at_bc(cpu: &mut SharpLR35902) -> SharpResult {
-    let addr = cpu.registers.as_dwords().bc;
-    cpu.registers.a = cpu.read(addr)?;
-
-    Ok(())
-}
-
-/// Reads an 8-bit value pointed to by register `DE` into the `A`
-/// register.
-///
-/// Flags affected: none
-pub fn ld_a_at_de(cpu: &mut SharpLR35902) -> SharpResult {
-    let addr = cpu.registers.as_dwords().de;
-    cpu.registers.a = cpu.read(addr)?;
-
-    Ok(())
-}
-
-/// Reads an 8-bit value pointed to by register `C` + 0xFF00 into the `A`
-/// register.
-///
-/// Flags affected: none
-pub fn ld_a_at_c(cpu: &mut SharpLR35902) -> SharpResult {
-    let addr = cpu.registers.c as u16 + 0xFF00;
-    cpu.registers.a = cpu.read(addr)?;
-
-    Ok(())
-}
-
-/// Writes the 8-bit contents of the `A` register to the memory location pointed
-/// to by register `C` + 0xFF00.
-///
-/// Flags affected: none
-pub fn ld_at_c_a(cpu: &mut SharpLR35902) -> SharpResult {
-    let addr = cpu.registers.c as u16 + 0xFF00;
-    let a = cpu.registers.a;
-    cpu.write(addr, a)?;
-
-    Ok(())
-}
-
-/// Reads an 8-bit value pointed to by the immediate 8-bit operand `d8` + 0xFF00
-/// into the `A` register.
-///
-/// Flags affected: none
-pub fn ld_a_at_d8(cpu: &mut SharpLR35902) -> SharpResult {
-    let addr = cpu.read_instruction_word()? as u16 + 0xFF00;
-    cpu.registers.a = cpu.read(addr)?;
-
-    Ok(())
-}
-
-/// Writes the 8-bit contents of the `A` register to the memory location pointed
-/// to by the immediate 8-bit operand `d8` + 0xFF00.
-///
-/// Flags affected: none
-pub fn ld_at_d8_a(cpu: &mut SharpLR35902) -> SharpResult {
-    let addr = cpu.read_instruction_word()? as u16 + 0xFF00;
-    let a = cpu.registers.a;
-    cpu.write(addr, a)?;
-
-    Ok(())
-}
-
-/// Reads an 8-bit value pointed to by the immediate 816bit operand `d16`
-/// into the `A` register.
-///
-/// Flags affected: none
-pub fn ld_a_at_d16(cpu: &mut SharpLR35902) -> SharpResult {
-    let addr = cpu.read_instruction_dword()?;
-    cpu.registers.a = cpu.read(addr)?;
-
-    Ok(())
-}
-
-/// Writes the 8-bit contents of the `A` register to the memory location pointed
-/// to by the immediate 16-bit operand `d16`
-///
-/// Flags affected: none
-pub fn ld_at_d16_a(cpu: &mut SharpLR35902) -> SharpResult {
-    let addr = cpu.read_instruction_dword()?;
-    let a = cpu.registers.a;
-    cpu.write(addr, a)?;
-
-    Ok(())
-}
-
-/// Reads the contents of one register into another.
-///
-/// Flags affected: none
-pub fn ld_r_r(cpu: &mut SharpLR35902) -> SharpResult {
-    let bits = OpcodeBits::from(cpu.current_opcode);
-    cpu.registers[bits.y] = cpu.registers[bits.z];
 
     Ok(())
 }
@@ -293,17 +203,6 @@ pub fn ld_rr_nn(cpu: &mut SharpLR35902) -> SharpResult {
     } else {
         cpu.registers.sp = data;
     }
-
-    Ok(())
-}
-
-/// Loads the contents of register `HL` into the stack pointer (`SP`).
-///
-/// Flags affected: none
-pub fn ld_sp_hl(cpu: &mut SharpLR35902) -> SharpResult {
-    let hl = cpu.registers.as_dwords().hl;
-
-    cpu.registers.sp = hl;
 
     Ok(())
 }
@@ -363,20 +262,6 @@ pub fn ldhl_sp_e(cpu: &mut SharpLR35902) -> SharpResult {
 
     cpu.registers.clear_s();
     cpu.registers.clear_z();
-
-    Ok(())
-}
-
-/// Stores the value of the stack pointer `SP` into the immediate 16-bit
-/// address.
-///
-/// Flags affected: none
-pub fn ld_d16_sp(cpu: &mut SharpLR35902) -> SharpResult {
-    let d16 = cpu.read_instruction_word()? as u16 | (cpu.read_instruction_word()? as u16) << 8;
-    let sp = cpu.registers.sp;
-
-    cpu.write(d16, (sp & 0x00FF) as u8)?;
-    cpu.write(d16 + 1, (sp >> 8) as u8)?;
 
     Ok(())
 }
@@ -538,8 +423,8 @@ pub fn sbc_a_d8(cpu: &mut SharpLR35902) -> SharpResult {
     Ok(())
 }
 
-/// Performs a logical AND opteration of the immediate 8-bit operand `d8` from
-/// register `A` or with a register `r`.
+/// Performs a logical AND operation of the immediate 8-bit operand `d8` from
+/// register `A`, with a register `r`, or the value of the byte at (HL).
 ///
 /// Flags affected: C - 0, H - 1, S - 0, Z - *
 #[ins_test("and_d8", |cpu| {
@@ -563,7 +448,7 @@ pub fn sbc_a_d8(cpu: &mut SharpLR35902) -> SharpResult {
 }, |cpu| {
     cpu.a == 0x0F
 })]
-fn and(cpu: &mut SharpLR35902) -> SharpResult {
+pub fn and(cpu: &mut SharpLR35902) -> SharpResult {
     let bits = OpcodeBits::from(cpu.current_opcode);
 
     match (bits.x & 1 == 1, bits.z == 0b110) {
@@ -598,8 +483,8 @@ fn and(cpu: &mut SharpLR35902) -> SharpResult {
     Ok(())
 }
 
-/// Performs a logical AND opteration of the immediate 8-bit operand `d8` from
-/// register `A` or with a register `r`.
+/// Performs a logical OR operation of the immediate 8-bit operand `d8` from
+/// register `A`, with a register `r`, or the value of the byte at (HL).
 ///
 /// Flags affected: C - 0, H - 0, S - 0, Z - *
 #[ins_test("or_d8", |cpu| {
@@ -623,21 +508,21 @@ fn and(cpu: &mut SharpLR35902) -> SharpResult {
 }, |cpu| {
     cpu.a == 0xFF
 })]
-fn or(cpu: &mut SharpLR35902) -> SharpResult {
+pub fn or(cpu: &mut SharpLR35902) -> SharpResult {
     let bits = OpcodeBits::from(cpu.current_opcode);
 
     match (bits.x & 1 == 1, bits.z == 0b110) {
-        // AND d8
+        // OR d8
         (true, true) => {
             let d8 = cpu.read_instruction_word()?;
             cpu.registers.a |= d8;
         }
-        // AND r
+        // OR r
         (false, false) => {
             let reg = cpu.registers[bits.z];
             cpu.registers.a |= reg;
         }
-        // AND (HL)
+        // OR (HL)
         (false, true) => {
             let val = cpu.read_hl()?;
             cpu.registers.a |= val;
@@ -654,6 +539,118 @@ fn or(cpu: &mut SharpLR35902) -> SharpResult {
     } else {
         cpu.clear_z();
     }
+
+    Ok(())
+}
+
+/// Performs a logical XOR operation of the immediate 8-bit operand `d8` from
+/// register `A`, with a register `r`, or the value of the byte at (HL).
+///
+/// Flags affected: C - 0, H - 0, S - 0, Z - *
+#[ins_test("xor_d8", |cpu| {
+    cpu.memory_controller.write(0x00, 0x0F).unwrap();
+    cpu.a = 0x0F;
+    cpu.current_opcode = 0b11_101_110;
+}, |cpu| {
+    cpu.a == 0x00
+})]
+#[ins_test("xor_r", |cpu| {
+    cpu.b = 0x0F;
+    cpu.a = 0x0F;
+    cpu.current_opcode = 0b10_101_000;
+}, |cpu| {
+    cpu.a == 0x00
+})]
+#[ins_test("xor_hl", |cpu| {
+    cpu.write_hl(0x0F).unwrap();
+    cpu.a = 0x0F;
+    cpu.current_opcode = 0b10_101_110;
+}, |cpu| {
+    cpu.a == 0x00
+})]
+pub fn xor(cpu: &mut SharpLR35902) -> SharpResult {
+    let bits = OpcodeBits::from(cpu.current_opcode);
+
+    match (bits.x & 1 == 1, bits.z == 0b110) {
+        // OR d8
+        (true, true) => {
+            let d8 = cpu.read_instruction_word()?;
+            cpu.registers.a ^= d8;
+        }
+        // OR r
+        (false, false) => {
+            let reg = cpu.registers[bits.z];
+            cpu.registers.a ^= reg;
+        }
+        // OR (HL)
+        (false, true) => {
+            let val = cpu.read_hl()?;
+            cpu.registers.a ^= val;
+        }
+        _ => unreachable!(),
+    }
+
+    cpu.clear_c();
+    cpu.clear_h();
+    cpu.clear_s();
+
+    if cpu.registers.a == 0 {
+        cpu.set_z();
+    } else {
+        cpu.clear_z();
+    }
+
+    Ok(())
+}
+
+/// Performs a comparison operation of the immediate 8-bit operand `d8` from
+/// register `A`, with a register `r`, or the value of the byte at (HL).
+///
+/// Flags affected: C - *, H - *, S - 1, Z - *
+#[ins_test("cp_d8", |cpu| {
+    cpu.memory_controller.write(0x00, 0x0F).unwrap();
+    cpu.a = 0x00;
+    cpu.current_opcode = 0b11_111_110;
+}, |cpu| {
+    cpu.h() && cpu.c() && !cpu.z() && cpu.s()
+})]
+#[ins_test("cp_r", |cpu| {
+    cpu.b = 0x0F;
+    cpu.a = 0x0F;
+    cpu.current_opcode = 0b10_111_000;
+}, |cpu| {
+    !cpu.h() && !cpu.c() && cpu.z() && cpu.s()
+})]
+#[ins_test("cp_hl", |cpu| {
+    cpu.write_hl(0x0F).unwrap();
+    cpu.a = 0xFE;
+    cpu.current_opcode = 0b10_111_110;
+}, |cpu| {
+   cpu.h() && !cpu.c() && !cpu.z() && cpu.s()
+})]
+pub fn cp(cpu: &mut SharpLR35902) -> SharpResult {
+    let bits = OpcodeBits::from(cpu.current_opcode);
+
+    let (_, flags) = match (bits.x & 1 == 1, bits.z == 0b110) {
+        // CP d8
+        (true, true) => {
+            let d8 = cpu.read_instruction_word()?;
+            u8_sub(cpu.registers.a, d8).into_parts()
+        }
+        // CP r
+        (false, false) => {
+            let reg = cpu.registers[bits.z];
+            u8_sub(cpu.registers.a, reg).into_parts()
+        }
+        // CP (HL)
+        (false, true) => {
+            let val = cpu.read_hl()?;
+            u8_sub(cpu.registers.a, val).into_parts()
+        }
+        _ => unreachable!(),
+    };
+
+    cpu.f = flags;
 
     Ok(())
 }
